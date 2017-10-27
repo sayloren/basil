@@ -197,6 +197,7 @@ def collect_coordinates_for_element_positions(btFeatures):
 	return midFeatures
 
 # check that the coordinates with the surrounding regions don't fall off the end of genome, if they do, print and skip
+# future might just fill in with N's
 def check_coords_beyond_genome(rangeFeatures):
 	genomeBedtool = get_bedtools_features(sizeGenome)
 	genomeFeatures = pd.read_table(genomeBedtool.fn, header=None)
@@ -213,7 +214,6 @@ def check_coords_beyond_genome(rangeFeatures):
 		# can check if any starts are negative
 	catFeatures = pd.concat(bychromosome,axis=0)
 	checklength = initiallength - len(catFeatures.index)
-	print catFeatures
 	print "there were {0} out of {1} total beyond the end of the genome".format(checklength, initiallength)
 	return catFeatures
 
@@ -709,8 +709,8 @@ def main():
 				denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,typeNames)
 			if reverseComplement:
 				typeWindowRC,typeNamesRC = sort_elements_by_directionality(typeBool,'directionality')
-				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,allNames)
-				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_RC_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
+				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,typeNames)
+				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_rc_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
 			else:
 				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
 	else:
@@ -740,9 +740,9 @@ def main():
 		if reverseComplement:
 			revWindow,revNames = sort_elements_by_directionality(directionFeatures,'directionality')
 			denseRandomRC = sliding_window_df_to_collect_all_random(spreadRandomRC,allNames)
-			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'All_RC_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
+			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'all_rc_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
 		else:
-			graph_element_line_means(allWindow,allNames,'All_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
+			graph_element_line_means(allWindow,allNames,'all_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
 	endtime = time.time()
 	print 'total time elapsed is {0}'.format(endtime-starttime)
 

@@ -636,7 +636,7 @@ def main():
 				denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,typeNames)
 			if reverseComplement:
 				typeWindowRC,typeNamesRC = sort_elements_by_directionality(typeBool,'directionality')
-				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,allNames)
+				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,typeNames)
 				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_rc_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
 			else:
 				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
