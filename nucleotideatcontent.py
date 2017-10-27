@@ -265,20 +265,22 @@ def calculate_nucleotides_at(element,size):
 
 # Get the number of times a motif appears in each boundary (reverse complement?, align by motif?)
 def locate_boundary_with_motif(element,size,motif):
+	rcmotif = reverse_complement_dictionary(motif)
 	start = element[:size]
 	end = element[-size:]
 	perSize = []
-	perSize.append(eval('100*float(start.count(motif))/len(start)'))
-	perSize.append(eval('100*float(end.count(motif))/len(end)'))
-	print "used increased {0} motif presence on boundary to assign directionality".format(motif)
+	perSize.append(eval('100*float(start.count(motif) + start.count(rcmotif))/len(start)'))
+	perSize.append(eval('100*float(end.count(motif) + end.count(rcmotif))/len(end)'))
 	return perSize
 
 # Directionality, as inferred by comparing first and last n base pairs from input parameters
 def compare_boundaries_size_n(element,size):
 	if motifdirectionality:
 		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
+		print "used increased {0} motif presence on boundary to assign directionality".format(motif)
 	else:
 		perSize = calculate_nucleotides_at(element,size)
+		print "used increased at content in bin size {0} to assign directionality".format(binDir)
 	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
@@ -292,7 +294,6 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
 		rangeFeatures=rangeFeatures.drop(['feature'],axis=1)
-		print 'sorting the element boundaries by bin size {0}'.format(binDir)
 	rangeFeatures=rangeFeatures.drop(['chr','start','end'],axis=1)
 	return rangeFeatures
 
