@@ -211,8 +211,9 @@ def check_coords_beyond_genome(rangeFeatures):
 		belowthresh = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['eBoundary'] <= end)]
 		bychromosome.append(belowthresh)
 		# can check if any starts are negative
-	catFeatures = pd.concat(bychromosome,axis=1)
+	catFeatures = pd.concat(bychromosome,axis=0)
 	checklength = initiallength - len(catFeatures.index)
+	print catFeatures
 	print "there were {0} out of {1} total beyond the end of the genome".format(checklength, initiallength)
 	return catFeatures
 
@@ -486,7 +487,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	ax3.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax3.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax3.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax3.set_yticks(ax1.get_yticks()[::2])
+	ax3.set_yticks(ax3.get_yticks()[::2])
 	ax3.set_xlabel('Position',size=16)
 	ax3.set_ylabel('SD',size=16)
 	ax3.set_title('Standard Deviation',size=16)
