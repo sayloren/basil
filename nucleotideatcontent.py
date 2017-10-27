@@ -47,31 +47,34 @@ import time
 
 # set command line arguments
 def get_args():
-	# File lists
+	# file lists
 	parser = argparse.ArgumentParser(description="Description")
 	parser.add_argument("efile", type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-r","--randomfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
 
-	# Columns in element file - all 0 based
+	# columns in element file - all 0 based
 	parser.add_argument("-lc", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is')
 	parser.add_argument("-dc", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-ic", "--idcolumn",type=int,help='column in the element file where the id is, if not provided will be generated for the sliding window collection')
 
-	# Genome Files
+	# genome files
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
 
-	# Integer Parameters
+	# integer parameters
 	parser.add_argument("-t","--total",type=int,default="600",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 	parser.add_argument("-i","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-w","--window",type=int,default="11",help='size of sliding window, should be an odd number, previous studies have used 11')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 
-	# Plot parameters
+	# plot filename addition
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
+
+	# directionality parameters
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	parser.add_argument("-n", "--numberrandomassignments",type=int,help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
+	parser.add_argument('-m',"--motifdirectionality",type=str,help='if directionality should be assigned by motif presence')
 
 	# Add additional descriptive file name information
 	return parser.parse_args()
@@ -127,8 +130,10 @@ def set_global_variables(args):
 	
 	global reverseComplement
 	global randomassignments
+	global motifdirectionality
 	reverseComplement = args.reversecomplement
 	randomassignments = args.numberrandomassignments
+	motifdirectionality = args.motifdirectionality
 	
 	print 'collected global parameters'
 
@@ -254,13 +259,26 @@ def calculate_nucleotides_at(element,size):
 	start = element[:size]
 	end = element[-size:]
 	perSize = []
-	perSize.append(eval('100*float(start.count("A") + start.count("a") + start.count("T") + start.count("t"))/len(start)'))
-	perSize.append(eval('100*float(end.count("A") + end.count("a") + end.count("T") + end.count("t"))/len(end)'))
+	perSize.append(eval('100*float(start.count("A") + start.count("T"))/len(start)'))
+	perSize.append(eval('100*float(end.count("A") + end.count("T"))/len(end)'))
+	return perSize
+
+# Get the number of times a motif appears in each boundary (reverse complement?, align by motif?)
+def locate_boundary_with_motif(element,size,motif):
+	start = element[:size]
+	end = element[-size:]
+	perSize = []
+	perSize.append(eval('100*float(start.count(motif))/len(start)'))
+	perSize.append(eval('100*float(end.count(motif))/len(end)'))
+	print "used increased {0} motif presence on boundary to assign directionality".format(motif)
 	return perSize
 
 # Directionality, as inferred by comparing first and last n base pairs from input parameters
 def compare_boundaries_size_n(element,size):
-	perSize = calculate_nucleotides_at(element,size)
+	if motifdirectionality:
+		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
+	else:
+		perSize = calculate_nucleotides_at(element,size)
 	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
@@ -366,7 +384,9 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
 	revATgroup,revATmean,revATstd = collect_sum_two_nucleotides(revWindow,names,'A','T')
-	info = str(fileName) + ', '+ str(len(ATgroup.index)) + ' - ' "UCES"
+	totalnumberelements = str(len(ATgroup.index))
+	totalnumberelementsrc = str(len(revATgroup.index))
+	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,2,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -419,7 +439,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 # 	ax0.text(32,65,'11bp sliding window',size=6)
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax0.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelements),size=14)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 
@@ -454,7 +474,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 # 	ax2.text(32,65,'11bp sliding window',size=6)
 	ax2.set_ylabel('% AT Content',size=16)
 	ax2.set_xlabel('Position',size=16)
-	ax2.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax2.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelementsrc),size=14)
 	ax2.set_yticks(ax2.get_yticks()[::2])
 	plt.xlim(0,num)
 
@@ -482,7 +502,8 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
-	info = str(fileName) + ', '+ str(len(ATgroup.index)) + ' - ' "UCES"
+	totalnumberelements = str(len(ATgroup.index))
+	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,1,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -521,7 +542,7 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax0.set_title('Mean AT Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
@@ -547,7 +568,8 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	#http://www.color-hex.com/color-palette/46594
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
-	info = str(fileName) + ', '+ str(len(ATgroup.index)) + ' - ' "UCES"
+	totalnumberelements = str(len(ATgroup.index))
+	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1])
 	gs.update(hspace=.8)
@@ -581,7 +603,7 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content for UCEs',size=16)
+	ax0.set_title('Mean AT Content for UCEs, {0} elements'.format(totalnumberelements),size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 	ax1.plot(fillX,ranATmean,linewidth=1,label='AT random',color='#cc858c')
@@ -592,7 +614,7 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	ax1.set_yticks(ax1.get_yticks()[::2])
 	ax1.set_xlabel('Position',size=16)
 	ax1.set_ylabel('% AT Content',size=16)
-	ax1.set_title('Mean AT Content for Randomly Sorted UCEs',size=16)
+	ax1.set_title('Mean AT Content for {0} times Randomly Sorted UCEs'.format(randomassignments),size=16)
 	plt.setp(ax1.get_xticklabels(),visible=True)
 
 	ax0.tick_params(axis='both',which='major',labelsize=16)
@@ -645,7 +667,7 @@ def main():
 	# Get and set parameters
 	args = get_args()
 	set_global_variables(args)
-	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}_{6}'.format(elementsize,inuce,num,binDir,window,eFiles,stringName)
+	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}'.format(elementsize,inuce,num,binDir,window,eFiles,motifdirectionality,stringName)
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
 	percentage_at_for_element(rangeFeatures['combineString'],eFiles)
@@ -659,8 +681,10 @@ def main():
 			typeBool,typeWindow,typeNames = separate_dataframe_by_group(type,directionFeatures,'type',eFiles)
 			percentage_at_for_element(typeBool['combineString'],'{0}, {1}'.format(eFiles,type))
 			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
-			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC=[],[],[],[]
+			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC,lengthrandom=[],[],[],[],[]
 			if rFiles:
+				lengthrandom.append(len(rFiles))
+				lengthrandom.append('randomfiles')
 				for randomFile in rFiles:
 					randomFeatures = collect_element_coordinates(randomFile)
 					randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
@@ -670,6 +694,8 @@ def main():
 						typeWindowRCrandom,typeNamesRCrandom = sort_elements_by_directionality(rantypeBool,'directionality')
 						spreadRandomtypeRC.append(typeWindowRCrandom)
 			if randomassignments:
+				lengthrandom.append(randomassignments)
+				lengthrandom.append('randomassingments')
 				for i in range(randomassignments):
 					typeBool['randomDirectiontype'] = np.random.choice(dirOptions,len(typeBool.index),p=probOptionstype)
 					typedirWindow, typedirNames = sort_elements_by_directionality(typeBool,'randomDirectiontype')
@@ -680,13 +706,15 @@ def main():
 			if reverseComplement:
 				typeWindowRC,typeNamesRC = sort_elements_by_directionality(typeBool,'directionality')
 				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,allNames)
-				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_RC_{1}'.format(type,paramlabels),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
+				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_RC_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
 			else:
-				graph_element_line_means(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),spreadRandomtype,denseRandomtype)
+				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
 	else:
 		allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
-		spreadRandom,spreadRandomRC,denseRandom,denseRandomRC=[],[],[],[]
+		spreadRandom,spreadRandomRC,denseRandom,denseRandomRC,lengthrandom=[],[],[],[],[]
 		if rFiles:
+			lengthrandom.append(len(rFiles))
+			lengthrandom.append('randomfiles')
 			for randomFile in rFiles:
 				randomFeatures = collect_element_coordinates(randomFile)
 				randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
@@ -696,6 +724,8 @@ def main():
 					ranrevWindow, ranrevNames = sort_elements_by_directionality(randirFeatures,'directionality')
 					spreadRandomRC.append(ranrevWindow)
 		if randomassignments:
+			lengthrandom.append(randomassignments)
+			lengthrandom.append('randomassingments')
 			for i in range(randomassignments):
 				directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
 				randirWindow, randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
@@ -706,9 +736,9 @@ def main():
 		if reverseComplement:
 			revWindow,revNames = sort_elements_by_directionality(directionFeatures,'directionality')
 			denseRandomRC = sliding_window_df_to_collect_all_random(spreadRandomRC,allNames)
-			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'All_RC_{0}'.format(paramlabels),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
+			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'All_RC_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
 		else:
-			graph_element_line_means_random_below(allWindow,allNames,'All_{0}'.format(paramlabels),spreadRandom,denseRandom)
+			graph_element_line_means(allWindow,allNames,'All_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
 	endtime = time.time()
 	print 'total time elapsed is {0}'.format(endtime-starttime)
 
