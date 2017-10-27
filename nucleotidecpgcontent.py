@@ -388,7 +388,9 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	set_ploting_parameters()
 	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
 	revCGgroup,revCGmean,revCGstd = collect_linear_two_nucleotides(revWindow,names,'CG')
-	info = str(fileName) + ', '+ str(len(CGgroup.index)) + ' - ' "UCES"
+	totalnumberelements = str(len(CGgroup.index))
+	totalnumberelementsrc = str(len(revCGgroup.index))
+	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,2,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -432,7 +434,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 # 	ax0.text(32,65,'11bp sliding window',size=6)
 	ax0.set_ylabel('% CpG Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean CpG Content With Standard Deviation',size=16)
+	ax0.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 
@@ -469,7 +471,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 # 	ax2.text(32,65,'11bp sliding window',size=6)
 	ax2.set_ylabel('% CpG Content',size=16)
 	ax2.set_xlabel('Position',size=16)
-	ax2.set_title('Mean CpG Content With Standard Deviation',size=16)
+	ax2.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelementsrc),size=16)
 	ax2.set_yticks(ax2.get_yticks()[::2])
 	plt.xlim(0,num)
 
@@ -497,7 +499,8 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
 	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
-	info = str(fileName) + ', '+ str(len(CGgroup.index)) + ' - ' "UCES"
+	totalnumberelements = str(len(CGgroup.index))
+	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,1,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -531,7 +534,7 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 # 	ax0.text(32,65,'11bp sliding window',size=6)
 	ax0.set_ylabel('% CpG Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean CpG Content With Standard Deviation',size=16)
+	ax0.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 	ax1.plot(fillX,CGstd,linewidth=1,label='AT element',color='#924d6a')
