@@ -68,10 +68,13 @@ def get_args():
 	parser.add_argument("-w","--window",type=int,default="11",help='size of sliding window, should be an odd number, previous studies have used 11')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 
-	# Plot parameters
+	# plot filename addition
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
+
+	# directionality parameters
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	parser.add_argument("-n", "--numberrandomassignments",type=int,help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
+	parser.add_argument('-m',"--motifdirectionality",type=str,help='if directionality should be assigned by motif presence')
 
 	# Add additional descriptive file name information
 	return parser.parse_args()
@@ -127,8 +130,10 @@ def set_global_variables(args):
 	
 	global reverseComplement
 	global randomassignments
+	global motifdirectionality
 	reverseComplement = args.reversecomplement
 	randomassignments = args.numberrandomassignments
+	motifdirectionality = args.motifdirectionality
 	
 	print 'collected global parameters'
 
@@ -202,15 +207,19 @@ def check_coords_beyond_genome(rangeFeatures):
 	genomeFeatures = pd.read_table(genomeBedtool.fn, header=None)
 	genomeFeatures['chr'] = genomeFeatures.loc[:,0]
 	genomeFeatures['end'] = genomeFeatures.loc[:,1]
+	genomeFeatures['start'] = 0
 	initiallength=len(rangeFeatures.index)
 	chrList = rangeFeatures['chr'].unique()
+	bychromosome = []
 	for chr in chrList:
 		end = genomeFeatures.loc[(genomeFeatures['chr'] == chr),'end'].values[0]
-		rangeFeatures = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['eBoundary'] < end)]
+		belowthresh = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['eBoundary'] <= end)]
+		bychromosome.append(belowthresh)
 		# can check if any starts are negative
-	checklength = initiallength - len(rangeFeatures.index)
-	print "there were {0} features where the surrounding features streached beyond the end genome boundary".format(checklength)
-	return rangeFeatures
+	catFeatures = pd.concat(bychromosome,axis=0)
+	checklength = initiallength - len(catFeatures.index)
+	print "there were {0} out of {1} total beyond the end of the genome".format(checklength, initiallength)
+	return catFeatures
 
 # get the strings for sliding window regions
 def get_fasta_for_element_coordinates(rangeFeatures):
@@ -263,9 +272,22 @@ def calculate_nucleotides_at(element,size):
 	perSize.append(eval('100*float(end.count("A") + end.count("a") + end.count("T") + end.count("t"))/len(end)'))
 	return perSize
 
+# Get the number of times a motif appears in each boundary
+def locate_boundary_with_motif(element,size,motif):
+	rcmotif = reverse_complement_dictionary(motif)
+	start = element[:size]
+	end = element[-size:]
+	perSize = []
+	perSize.append(eval('100*float(start.count(motif) + start.count(rcmotif))/len(start)'))
+	perSize.append(eval('100*float(end.count(motif) + end.count(rcmotif))/len(end)'))
+	return perSize
+
 # Directionality, as inferred by comparing first and last n base pairs from input parameters
 def compare_boundaries_size_n(element,size):
-	perSize = calculate_nucleotides_at(element,size)
+	if motifdirectionality:
+		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
+	else:
+		perSize = calculate_nucleotides_at(element,size)
 	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
@@ -353,29 +375,20 @@ def sliding_window_wrapper(features,label):
 
 # Get group, mean and standard deviation for AT
 def collect_linear_two_nucleotides(dfWindow,names,nuc1):
-	ATNames = [names.index(i) for i in names if nuc1 in i or nuc2 in i]
-	ATDataFrames = [dfWindow[i] for i in ATNames]
-	ATconcat = pd.concat(ATDataFrames,axis=1)
-	ATgroup = ATconcat.groupby(ATconcat.columns,axis=1).sum()
-	ATmean = ATgroup.mean()
-	ATstd = ATgroup.std()
-	print 'summed a and t for graph'
-	return ATgroup, ATmean, ATstd
-
-
-
-# 		CpGNames = [names.index(i) for i in names if i == 'CG']
-# 		CpGNamesVal = [names[i] for i in CpGNames]
-# 		CpGDataFrames = [dfWindow[i] for i in CpGNames]
-# 		ranCpGDataFrames = [ranWindow[i] for i in CpGNames]
-
+	CpGNames = [names.index(i) for i in names if i == nuc1]
+	CpGDataFrames = [dfWindow[i] for i in CpGNames]
+	CpGconcat = pd.concat(CpGDataFrames,axis=1)
+	CpGgroup = CpGconcat.groupby(CpGconcat.columns,axis=1).sum()
+	CpGmean = CpGgroup.mean()
+	CpGstd = CpGgroup.std()
+	return CpGgroup, CpGmean, CpGstd
 
 # Make graphs for fangs, with rc sorting
 def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,collectRandom,collectRandomRC,denseRandom,denseRandomRC):
 	set_ploting_parameters()
-	ATgroup,ATmean,ATstd = collect_linear_two_nucleotides(dfWindow,names,'A','T')
-	revATgroup,revATmean,revATstd = collect_linear_two_nucleotides(revWindow,names,'A','T')
-	info = str(fileName) + ', '+ str(len(ATgroup.index)) + ' - ' "UCES"
+	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
+	revCGgroup,revCGmean,revCGstd = collect_linear_two_nucleotides(revWindow,names,'CG')
+	info = str(fileName) + ', '+ str(len(CGgroup.index)) + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,2,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -400,30 +413,30 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	ax1 = plt.subplot(gs[1,0],sharex=ax0)
 
 	if any([rFiles,randomassignments]):
-		ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
-		revranATgroup,revranATmean,revranATstd = collect_linear_two_nucleotides(denseRandomRC,names,'A','T')
+		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
+		revranCGgroup,revranCGmean,revranCGstd = collect_linear_two_nucleotides(denseRandomRC,names,'CG')
 		for dfNuc in collectRandom:
-			ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(dfNuc,names,'A','T')
-			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.3)
+			ranATgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
+			ax0.plot(fillX,ranCGmean,linewidth=1,alpha=0.3)
 		for dfNuc in collectRandom:
-			ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(dfNuc,names,'A','T')
+			ranCGgroup,ranCGmean,ranATstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
 			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
 
-	ax0.plot(fillX,ATmean,linewidth=2,label='AT element',color='#924d6a')
-# 	ax0.fill_between(fillX,ATmean+ATstd,ATmean-ATstd,label='',alpha=0.2)
+	ax0.plot(fillX,CGmean,linewidth=2,label='AT element',color='#924d6a')
+# 	ax0.fill_between(fillX,CGmean+CGstd,CGmean-CGstd,label='',alpha=0.2)
 	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax0.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 # 	ax0.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
 # 	ax0.text(32,65,'11bp sliding window',size=6)
-	ax0.set_ylabel('% AT Content',size=16)
+	ax0.set_ylabel('% CpG Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax0.set_title('Mean CpG Content With Standard Deviation',size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 
-	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
+	ax1.plot(fillX,CGstd,linewidth=2,label='CpG element',color='#924d6a')
 	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
@@ -440,27 +453,27 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 
 	if any([rFiles,randomassignments]):
 		for rcNuc in collectRandomRC:
-			ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(rcNuc,names,'A','T')
-			ax2.plot(fillX,ranATmean,linewidth=1,alpha=0.3)
+			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(rcNuc,names,'CG')
+			ax2.plot(fillX,ranCGmean,linewidth=1,alpha=0.3)
 		for rcNuc in collectRandomRC:
-			ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(rcNuc,names,'A','T')
-			ax3.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
+			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(rcNuc,names,'CG')
+			ax3.plot(fillX,ranCGstd,linewidth=1,alpha=0.3)
 
-	ax2.plot(fillX,revATmean,linewidth=2,label='AT element',color='#924d6a')
-# 	ax0.fill_between(fillX,revATmean+revATstd,revATmean-revATstd,label='',alpha=0.2)
+	ax2.plot(fillX,revCGmean,linewidth=2,label='CpG element',color='#924d6a')
+# 	ax0.fill_between(fillX,revCGmean+revCGstd,revCGmean-revCGstd,label='',alpha=0.2)
 	ax2.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax2.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax2.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax2.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 # 	ax2.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
 # 	ax2.text(32,65,'11bp sliding window',size=6)
-	ax2.set_ylabel('% AT Content',size=16)
+	ax2.set_ylabel('% CpG Content',size=16)
 	ax2.set_xlabel('Position',size=16)
-	ax2.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax2.set_title('Mean CpG Content With Standard Deviation',size=16)
 	ax2.set_yticks(ax2.get_yticks()[::2])
 	plt.xlim(0,num)
 
-	ax3.plot(fillX,revATstd,linewidth=2,label='AT element',color='#924d6a')
+	ax3.plot(fillX,revCGstd,linewidth=2,label='CpG element',color='#924d6a')
 	ax3.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax3.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax3.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
@@ -469,7 +482,7 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	ax3.set_xlabel('Position',size=16)
 	ax3.set_ylabel('SD',size=16)
 	ax3.set_title('Standard Deviation',size=16)
-	plt.setp(ax1.get_xticklabels(), visible=True)
+	plt.setp(ax3.get_xticklabels(), visible=True)
 
 	ax0.tick_params(axis='both',which='major',labelsize=16)
 	ax1.tick_params(axis='both',which='major',labelsize=16)
@@ -483,8 +496,8 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 # Make graphs for fangs
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
-	ATgroup,ATmean,ATstd = collect_linear_two_nucleotides(dfWindow,names,'A','T')
-	info = str(fileName) + ', '+ str(len(ATgroup.index)) + ' - ' "UCES"
+	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
+	info = str(fileName) + ', '+ str(len(CGgroup.index)) + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(2,1,height_ratios=[3,1])
 	gs.update(hspace=.8)
@@ -494,9 +507,9 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	sns.set_palette("husl",n_colors=8)
 	
 	# Stats
-# 	wilcoxonsignedrank = ss.wilcoxon(ATmean,ranATmean)
-# 	sdelement = ATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdrandom = ranATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
+# 	wilcoxonsignedrank = ss.wilcoxon(CGmean,ranCGmean)
+# 	sdelement = CGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
+# 	sdrandom = ranCGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
 # 	sdkruskal = mstats.kruskalwallis(sdelement,sdrandom)
 # 	ax0.text(20,90,'Wilcox Signed Rank P-value {:0.1e}'.format(wilcoxPSRMean[1]),size=6,clip_on=False)
 # 	ax2.text(16.25,14.5,'KW P-value {:0.1e}'.format(kruskalSD[1]),size=6,clip_on=False)
@@ -504,24 +517,24 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
 	if any([rFiles,randomassignments]):
-		ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(denseRandom,names,'A','T')
+		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
 		for dfNuc in Random:
-			ranATgroup,ranATmean,ranATstd = collect_linear_two_nucleotides(dfNuc,names,'A','T')
-			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
-			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
-	ax0.plot(fillX,ATmean,linewidth=1,label='AT element',color='#924d6a')
+			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
+			ax0.plot(fillX,ranCGmean,linewidth=1,alpha=0.1)
+			ax1.plot(fillX,ranCGstd,linewidth=1,alpha=0.1)
+	ax0.plot(fillX,CGmean,linewidth=1,label='CpG element',color='#924d6a')
 	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax0.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 # 	ax0.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
 # 	ax0.text(32,65,'11bp sliding window',size=6)
-	ax0.set_ylabel('% AT Content',size=16)
+	ax0.set_ylabel('% CpG Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation',size=16)
+	ax0.set_title('Mean CpG Content With Standard Deviation',size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
-	ax1.plot(fillX,ATstd,linewidth=1,label='AT element',color='#924d6a')
+	ax1.plot(fillX,CGstd,linewidth=1,label='AT element',color='#924d6a')
 	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
@@ -582,7 +595,7 @@ def main():
 	# Get and set parameters
 	args = get_args()
 	set_global_variables(args)
-	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}_{6}'.format(elementsize,inuce,num,binDir,window,eFiles,stringName)
+	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}'.format(elementsize,inuce,num,binDir,window,eFiles,motifdirectionality,stringName)
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
 	percentage_at_for_element(rangeFeatures['combineString'],eFiles)
@@ -596,8 +609,10 @@ def main():
 			typeBool,typeWindow,typeNames = separate_dataframe_by_group(type,directionFeatures,'type',eFiles)
 			percentage_at_for_element(typeBool['combineString'],'{0}, {1}'.format(eFiles,type))
 			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
-			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC=[],[],[],[]
+			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC,lengthrandom=[],[],[],[],[]
 			if rFiles:
+				lengthrandom.append(len(rFiles))
+				lengthrandom.append('randomfiles')
 				for randomFile in rFiles:
 					randomFeatures = collect_element_coordinates(randomFile)
 					randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
@@ -607,6 +622,8 @@ def main():
 						typeWindowRCrandom,typeNamesRCrandom = sort_elements_by_directionality(rantypeBool,'directionality')
 						spreadRandomtypeRC.append(typeWindowRCrandom)
 			if randomassignments:
+				lengthrandom.append(randomassignments)
+				lengthrandom.append('randomassingments')
 				for i in range(randomassignments):
 					typeBool['randomDirectiontype'] = np.random.choice(dirOptions,len(typeBool.index),p=probOptionstype)
 					typedirWindow, typedirNames = sort_elements_by_directionality(typeBool,'randomDirectiontype')
@@ -617,13 +634,15 @@ def main():
 			if reverseComplement:
 				typeWindowRC,typeNamesRC = sort_elements_by_directionality(typeBool,'directionality')
 				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,allNames)
-				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_rc_{1}'.format(type,paramlabels),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
+				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_rc_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
 			else:
-				graph_element_line_means(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),spreadRandomtype,denseRandomtype)
+				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
 	else:
 		allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
-		spreadRandom,spreadRandomRC,denseRandom,denseRandomRC=[],[],[],[]
+		spreadRandom,spreadRandomRC,denseRandom,denseRandomRC,lengthrandom=[],[],[],[],[]
 		if rFiles:
+			lengthrandom.append(len(rFiles))
+			lengthrandom.append('randomfiles')
 			for randomFile in rFiles:
 				randomFeatures = collect_element_coordinates(randomFile)
 				randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
@@ -633,6 +652,8 @@ def main():
 					ranrevWindow, ranrevNames = sort_elements_by_directionality(randirFeatures,'directionality')
 					spreadRandomRC.append(ranrevWindow)
 		if randomassignments:
+			lengthrandom.append(randomassignments)
+			lengthrandom.append('randomassingments')
 			for i in range(randomassignments):
 				directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
 				randirWindow, randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
@@ -643,9 +664,9 @@ def main():
 		if reverseComplement:
 			revWindow,revNames = sort_elements_by_directionality(directionFeatures,'directionality')
 			denseRandomRC = sliding_window_df_to_collect_all_random(spreadRandomRC,allNames)
-			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'all_rc_{0}'.format(paramlabels),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
+			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'all_rc_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
 		else:
-			graph_element_line_means(allWindow,allNames,'all_{0}'.format(paramlabels),spreadRandom,denseRandom)
+			graph_element_line_means(allWindow,allNames,'all_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
 	endtime = time.time()
 	print 'total time elapsed is {0}'.format(endtime-starttime)
 
