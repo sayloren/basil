@@ -202,19 +202,23 @@ def check_coords_beyond_genome(rangeFeatures):
 	genomeFeatures = pd.read_table(genomeBedtool.fn, header=None)
 	genomeFeatures['chr'] = genomeFeatures.loc[:,0]
 	genomeFeatures['end'] = genomeFeatures.loc[:,1]
+	genomeFeatures['start'] = 0
 	initiallength=len(rangeFeatures.index)
 	chrList = rangeFeatures['chr'].unique()
+	bychromosome = []
 	for chr in chrList:
 		end = genomeFeatures.loc[(genomeFeatures['chr'] == chr),'end'].values[0]
-		rangeFeatures = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['eBoundary'] < end)]
+		belowthresh = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['eBoundary'] <= end)]
+		bychromosome.append(belowthresh)
 		# can check if any starts are negative
-	checklength = initiallength - len(rangeFeatures.index)
-	print "there were {0} features where the surrounding features streached beyond the end genome boundary".format(checklength)
-	return rangeFeatures
+	catFeatures = pd.concat(bychromosome,axis=1)
+	checklength = initiallength - len(catFeatures.index)
+	print "there were {0} out of {1} total beyond the end of the genome".format(checklength, initiallength)
+	return catFeatures
 
 # get the strings for sliding window regions
 def get_fasta_for_element_coordinates(rangeFeatures):
-# 	rangeFeatures = check_coords_beyond_genome(rangeFeatures)
+	rangeFeatures = check_coords_beyond_genome(rangeFeatures)
 	rangeFeatures['sBoundarySeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','sBoundary','start']].values.astype(str).tolist()))
 	rangeFeatures['sEdgeSeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','sEdge']].values.astype(str).tolist()))
 	rangeFeatures['MiddleSeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','sCenter','eCenter']].values.astype(str).tolist()))
@@ -263,7 +267,7 @@ def calculate_nucleotides_at(element,size):
 	perSize.append(eval('100*float(end.count("A") + end.count("T"))/len(end)'))
 	return perSize
 
-# Get the number of times a motif appears in each boundary (reverse complement?, align by motif?)
+# Get the number of times a motif appears in each boundary
 def locate_boundary_with_motif(element,size,motif):
 	rcmotif = reverse_complement_dictionary(motif)
 	start = element[:size]
@@ -277,10 +281,8 @@ def locate_boundary_with_motif(element,size,motif):
 def compare_boundaries_size_n(element,size):
 	if motifdirectionality:
 		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
-		print "used increased {0} motif presence on boundary to assign directionality".format(motif)
 	else:
 		perSize = calculate_nucleotides_at(element,size)
-		print "used increased at content in bin size {0} to assign directionality".format(binDir)
 	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
