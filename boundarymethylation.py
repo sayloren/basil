@@ -422,7 +422,7 @@ def sort_elements_by_directionality(directionFeatures,columnCompare):
 
 # Create column to graph on y axis
 def columns_to_process_for_graphing(df,numberator,denomianator):
-	df['ygraphcolumn'] = df[denomianator]/df[numberator] * 100
+	df['ygraphcolumn'] = df[numberator]/df[denomianator] * 100
 	return df
 
 # Count frequency of methylation at location, tissue and cytosine
@@ -439,7 +439,7 @@ def graph_boundary_methylation(upstream,downstream,fileName,numberator,denomiana
 	pp = PdfPages('Methylation_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-	sns.set_palette("husl",n_colors=4)
+	sns.set_palette("husl",n_colors=8)
 
 	upstreamfreq = count_methylation_frequency(upstream)
 	downstreamfreq = count_methylation_frequency(downstream)
@@ -468,7 +468,6 @@ def graph_boundary_methylation(upstream,downstream,fileName,numberator,denomiana
 		ax1.set_title('% CpGs Methylation Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
 		ax1.set_ylabel('% CpGs Methylation',size=8)
 
-	
 	sns.despine()
 	pp.savefig()
 	pp.close()
@@ -501,6 +500,10 @@ def main():
 
 	collectupstream,collectdownstream = [],[]
 	collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
+	
+	numbertissues = []
+	numbertissues.append(len(mFiles))
+	numbertissues.append('numtissues')
 	
 	if labelcolumn:
 		lenthrandom =[]
@@ -563,9 +566,9 @@ def main():
 			if reverseComplement:
 				typeconcatupstreamreverse = pd.concat(typecollectreversecomplementupstream)
 				typeconcatdownstreamreverse = pd.concat(typecollectreversecomplementdownstream)
-				graph_boundary_methylation(typeconcatupstreamreverse,typeconcatdownstreamreverse,'{0}_rc_{1}_{2}'.format(type,paramlabels,lengthrandom),'methylationfrequency','cpgsequencecount')
+				graph_boundary_methylation(typeconcatupstreamreverse,typeconcatdownstreamreverse,'{0}_rc_{1}_{2}_{3}'.format(type,paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 			else:
-				graph_boundary_methylation(typeconcatupstream,typeconcatdownstream,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),'methylationfrequency','cpgsequencecount')
+				graph_boundary_methylation(typeconcatupstream,typeconcatdownstream,'{0}_{1}_{2}_{3}'.format(type,paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 
 	else:
 		lengthrandom =[]
@@ -621,10 +624,9 @@ def main():
 		if reverseComplement:
 			concatupstreamreverse = pd.concat(collectreversecomplementupstream)
 			concatdownstreamreverse = pd.concat(collectreversecomplementdownstream)
-			graph_boundary_methylation(concatupstreamreverse,concatdownstreamreverse,'all_rc_{0}_{1}'.format(paramlabels,lengthrandom),'methylationfrequency','cpgsequencecount')
+			graph_boundary_methylation(concatupstreamreverse,concatdownstreamreverse,'all_rc_{0}_{1}_{2}'.format(paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 		else:
-			graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}_{2}'.format(paramlabels,lengthrandom),'methylationfrequency','cpgsequencecount')
-
+			graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}_{2_{2}}'.format(paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 
 if __name__ == "__main__":
 	main()
