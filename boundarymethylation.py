@@ -626,7 +626,7 @@ def main():
 			concatdownstreamreverse = pd.concat(collectreversecomplementdownstream)
 			graph_boundary_methylation(concatupstreamreverse,concatdownstreamreverse,'all_rc_{0}_{1}_{2}'.format(paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 		else:
-			graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}_{2_{2}}'.format(paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
+			graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}_{1}_{2}'.format(paramlabels,lengthrandom,numbertissues),'methylationfrequency','cpgsequencecount')
 
 if __name__ == "__main__":
 	main()
