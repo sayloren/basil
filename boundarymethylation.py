@@ -548,6 +548,7 @@ def main():
 						typecollectreversecomplementupstream.append(randomrevtypeupstreammethylation)
 						typecollectreversecomplementdownstream.append(randomrevtypedownstreammethylation)
 			else:
+				lengthrandom =[]
 				lengthrandom.append(randomassignments)
 				lengthrandom.append('randomassingments')
 				for i in range(randomassignments):
@@ -567,7 +568,7 @@ def main():
 				graph_boundary_methylation(typeconcatupstream,typeconcatdownstream,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),'methylationfrequency','cpgsequencecount')
 
 	else:
-		lenthrandom =[]
+		lengthrandom =[]
 		allmethylationupstream,allmethylationdownstream = collect_methylation_data_by_element(rangeFeatures)
 		allmethylationupstream['group'] = 'element'
 		allmethylationdownstream['group'] = 'element'
