@@ -58,7 +58,7 @@ def get_args():
 	# Columns in element file - all 0 based
 	parser.add_argument("-lc", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is')
 	parser.add_argument("-dc", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
-	parser.add_argument("-ic", "--idcolumn",default="3",type=int,help='column in the element file where the id is, must have')
+	parser.add_argument("-ic", "--idcolumn",type=int,help='column in the element file where the id is')
 
 	# Genome Files
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
@@ -78,6 +78,7 @@ def get_args():
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	parser.add_argument("-n", "--numberrandomassignments",type=int,default="1",help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
 	parser.add_argument('-t',"--twographs",action='store_true',help='if you want to see the upstream and downstream boundaries separately')
+	parser.add_argument('-d',"--motifdirectionality",type=str,help='if directionality should be assigned by motif presence')
 
 	# Add additional descriptive file name information
 	return parser.parse_args()
@@ -131,8 +132,10 @@ def set_global_variables(args):
 	
 	global reverseComplement
 	global randomassignments
+	global motifdirectionality
 	reverseComplement = args.reversecomplement
 	randomassignments = args.numberrandomassignments
+	motifdirectionality = args.motifdirectionality
 
 # get bt features
 def get_bedtools_features(strFileName):
@@ -159,7 +162,6 @@ def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures['startdown'] = midFeatures.loc[:,1] + periphery
 	midFeatures['endup'] = midFeatures.loc[:,2] - periphery
 	midFeatures['enddown'] = midFeatures.loc[:,2] + periphery
-	midFeatures['id'] = midFeatures.loc[:,idcolumn]
 	if idcolumn:
 		midFeatures['id'] = midFeatures.loc[:,idcolumn]
 	else:
@@ -172,13 +174,33 @@ def collect_coordinates_for_element_positions(btFeatures):
 
 # get the strings for sliding window regions
 def get_fasta_for_element_coordinates(rangeFeatures):#rangeFeatures,faGenome
+	rangeFeatures = check_coords_beyond_genome(rangeFeatures)
 	rangeFeatures['upstreamsequence'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','startup','startdown']].values.astype(str).tolist()))
 	rangeFeatures['upstreamsequence'] = rangeFeatures['upstreamsequence'].str.upper()
 	rangeFeatures['downstreamsequence'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','endup','enddown']].values.astype(str).tolist()))
 	rangeFeatures['downstreamsequence'] = rangeFeatures['downstreamsequence'].str.upper()
-	rangeFeatures['feature'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','end']].values.astype(str).tolist()))
-	rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 	return rangeFeatures
+
+# check that the coordinates with the surrounding regions don't fall off the end of genome, if they do, print and skip
+# future might just fill in with N's
+def check_coords_beyond_genome(rangeFeatures):
+	genomeBedtool = get_bedtools_features(sizeGenome)
+	genomeFeatures = pd.read_table(genomeBedtool.fn, header=None)
+	genomeFeatures['chr'] = genomeFeatures.loc[:,0]
+	genomeFeatures['end'] = genomeFeatures.loc[:,1]
+	genomeFeatures['start'] = 0
+	initiallength=len(rangeFeatures.index)
+	chrList = rangeFeatures['chr'].unique()
+	bychromosome = []
+	for chr in chrList:
+		end = genomeFeatures.loc[(genomeFeatures['chr'] == chr),'end'].values[0]
+		belowthresh = rangeFeatures[(rangeFeatures['chr'] == chr) & (rangeFeatures['enddown'] <= end)]
+		bychromosome.append(belowthresh)
+		# can check if any starts are negative
+	catFeatures = pd.concat(bychromosome,axis=0)
+	checklength = initiallength - len(catFeatures.index)
+	print "there were {0} out of {1} total beyond the end of the genome".format(checklength, initiallength)
+	return catFeatures
 
 # used in get_fasta_for_element_coordinates to extract just the fasta strings
 def get_just_fasta_sequence_for_feature(inFeature):
@@ -221,9 +243,22 @@ def calculate_nucleotides_at(element,size):
 	perSize.append(eval('100*float(end.count("A") + end.count("a") + end.count("T") + end.count("t"))/len(end)'))
 	return perSize
 
+# Get the number of times a motif appears in each boundary
+def locate_boundary_with_motif(element,size,motif):
+	rcmotif = reverse_complement_dictionary(motif)
+	start = element[:size]
+	end = element[-size:]
+	perSize = []
+	perSize.append(eval('100*float(start.count(motif) + start.count(rcmotif))/len(start)'))
+	perSize.append(eval('100*float(end.count(motif) + end.count(rcmotif))/len(end)'))
+	return perSize
+
 # Directionality, as inferred by comparing first and last n base pairs from input parameters
 def compare_boundaries_size_n(element,size):
-	perSize = calculate_nucleotides_at(element,size)
+	if motifdirectionality:
+		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
+	else:
+		perSize = calculate_nucleotides_at(element,size)
 	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
@@ -231,9 +266,13 @@ def compare_boundaries_size_n(element,size):
 	return outList
 
 # With the results from compare_boundaries_size_n per each element, evaluate directionality into new column
-def evaluate_boundaries_size_n(rangeFeatures,fileName):
-	rangeFeatures['compareBoundaries'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
-	print 'Sorting the element boundaries by bin size {0}'.format(binDir)
+def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
+	if not directionalitycolumn:
+		rangeFeatures['feature'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','end']].values.astype(str).tolist()))
+		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
+		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
+		rangeFeatures=rangeFeatures.drop(['feature'],axis=1)
+	rangeFeatures=rangeFeatures.drop(['chr','start','end'],axis=1)
 	return rangeFeatures
 
 # Threshold methylation data by coverage and percentage
@@ -435,6 +474,7 @@ def make_probabilites_for_direction(directionFeatures,probabilitycolumn):
 	probOptions = [numMinus,numPlus,numEqual]
 	return probOptions
 
+
 def save_panda_data_frame(df,filename):
 	df.to_csv(filename,sep="\t",header=True)
 
@@ -446,71 +486,17 @@ def main():
 	
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
-	directionFeatures = evaluate_boundaries_size_n(rangeFeatures,eFiles)
+	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
 	
 	# Get the probability for each directional assignment, and use to randomly assign the correct number of random directions
 	dirOptions = ['-','+','=']
-	if directionalitycolumn:
-		probOptions = make_probabilites_for_direction(directionFeatures,'directionality')
-	else:
-		probOptions = make_probabilites_for_direction(directionFeatures,'compareBoundaries')
-		
-		collectupstream,collectdownstream = [],[]
-		collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
-	if 'all' in typeList:
-		typeList.remove('all')
-		allmethylationupstream,allmethylationdownstream = collect_methylation_data_by_element(rangeFeatures)
-		allmethylationupstream['group'] = 'element'
-		allmethylationdownstream['group'] = 'element'
-		collectupstream.append(allmethylationupstream)
-		collectdownstream.append(allmethylationdownstream)
-		if reverseComplement:
-			if directionalitycolumn:
-				revmethylationupstream,revmethylationdownstream = sort_elements_by_directionality(directionFeatures,'directionality')
-				revmethylationupstream['group'] = 'element'
-				revmethylationdownstream['group'] = 'element'
-				collectreversecomplementupstream.append(revmethylationupstream)
-				collectreversecomplementdownstream.append(revmethylationdownstream)
-			else:
-				revmethylationupstream,revmethylationdownstream = sort_elements_by_directionality(directionFeatures,'compareBoundaries')
-				revmethylationupstream['group'] = 'element'
-				revmethylationdownstream['group'] = 'element'
-				collectreversecomplementupstream.append(revmethylationupstream)
-				collectreversecomplementdownstream.append(revmethylationdownstream)
-		if rFiles:
-			for randomFile in rFiles:
-				randomFeatures = collect_element_coordinates(randomFile)
-				randirFeatures= evaluate_boundaries_size_n(randomFeatures,randomFile)
-				allrandommethylationupstream,allrandommethylationdownstream = collect_methylation_data_by_element(randirFeatures)
-				allrandommethylationupstream['group'] = 'random'
-				allrandommethylationdownstream['group'] = 'random'
-				collectupstream.append(allrandommethylationupstream)
-				collectdownstream.append(allrandommethylationdownstream)
-				if reverseComplement:
-					randomrevmethylationupstream,randomrevmethylationdownstream = sort_elements_by_directionality(randirFeatures,'compareBoundaries')
-					randomrevmethylationupstream['group'] = 'random'
-					randomrevmethylationdownstream['group'] = 'random'
-					collectreversecomplementupstream.append(randomrevmethylationupstream)
-					collectreversecomplementdownstream.append(randomrevmethylationdownstream)
-		else:
-			for i in range(randomassignments):
-				directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
-				randirrevmethylationupstream,randirrevmethylationdownstream = sort_elements_by_directionality(directionFeatures,'randomDirection')
-				randirrevmethylationupstream['group'] = 'random'
-				randirrevmethylationdownstream['group'] = 'random'
-				collectupstream.append(randirrevmethylationupstream)
-				collectdownstream.append(randirrevmethylationdownstream)
-				collectreversecomplementupstream.append(randirrevmethylationupstream)
-				collectreversecomplementdownstream.append(randirrevmethylationdownstream)
-		concatupstream = pd.concat(collectupstream)
-		concatdownstream = pd.concat(collectdownstream)
-		graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}'.format(paramlabels),'methylationfrequency','cpgsequencecount')
-		if reverseComplement:
-			concatupstreamreverse = pd.concat(collectreversecomplementupstream)
-			concatdownstreamreverse = pd.concat(collectreversecomplementdownstream)
-			graph_boundary_methylation(concatupstreamreverse,concatdownstreamreverse,'all_rc_{0}'.format(paramlabels),'methylationfrequency','cpgsequencecount')
+	probOptions = make_probabilites_for_direction(directionFeatures,'directionality')
+
+	collectupstream,collectdownstream = [],[]
+	collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
+	
 	if labelcolumn:
-		typeList = rangeFeatures[labelcolumn].unique()
+		typeList = directionFeatures['type'].unique()
 		for type in typeList:
 			typecollectupstream,typecollectdownstream = [],[]
 			typecollectreversecomplementupstream,typecollectreversecomplementdownstream = [],[]
@@ -566,6 +552,57 @@ def main():
 				typeconcatupstreamreverse = pd.concat(typecollectreversecomplementupstream)
 				typeconcatdownstreamreverse = pd.concat(typecollectreversecomplementdownstream)
 				graph_boundary_methylation(typeconcatupstreamreverse,typeconcatdownstreamreverse,'{0}_rc_{1}'.format(type,paramlabels),'methylationfrequency','cpgsequencecount')
+	else:
+		allmethylationupstream,allmethylationdownstream = collect_methylation_data_by_element(rangeFeatures)
+		allmethylationupstream['group'] = 'element'
+		allmethylationdownstream['group'] = 'element'
+		collectupstream.append(allmethylationupstream)
+		collectdownstream.append(allmethylationdownstream)
+		if reverseComplement:
+			if directionalitycolumn:
+				revmethylationupstream,revmethylationdownstream = sort_elements_by_directionality(directionFeatures,'directionality')
+				revmethylationupstream['group'] = 'element'
+				revmethylationdownstream['group'] = 'element'
+				collectreversecomplementupstream.append(revmethylationupstream)
+				collectreversecomplementdownstream.append(revmethylationdownstream)
+			else:
+				revmethylationupstream,revmethylationdownstream = sort_elements_by_directionality(directionFeatures,'compareBoundaries')
+				revmethylationupstream['group'] = 'element'
+				revmethylationdownstream['group'] = 'element'
+				collectreversecomplementupstream.append(revmethylationupstream)
+				collectreversecomplementdownstream.append(revmethylationdownstream)
+		if rFiles:
+			for randomFile in rFiles:
+				randomFeatures = collect_element_coordinates(randomFile)
+				randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
+				allrandommethylationupstream,allrandommethylationdownstream = collect_methylation_data_by_element(randirFeatures)
+				allrandommethylationupstream['group'] = 'random'
+				allrandommethylationdownstream['group'] = 'random'
+				collectupstream.append(allrandommethylationupstream)
+				collectdownstream.append(allrandommethylationdownstream)
+				if reverseComplement:
+					randomrevmethylationupstream,randomrevmethylationdownstream = sort_elements_by_directionality(randirFeatures,'compareBoundaries')
+					randomrevmethylationupstream['group'] = 'random'
+					randomrevmethylationdownstream['group'] = 'random'
+					collectreversecomplementupstream.append(randomrevmethylationupstream)
+					collectreversecomplementdownstream.append(randomrevmethylationdownstream)
+		else:
+			for i in range(randomassignments):
+				directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
+				randirrevmethylationupstream,randirrevmethylationdownstream = sort_elements_by_directionality(directionFeatures,'randomDirection')
+				randirrevmethylationupstream['group'] = 'random'
+				randirrevmethylationdownstream['group'] = 'random'
+				collectupstream.append(randirrevmethylationupstream)
+				collectdownstream.append(randirrevmethylationdownstream)
+				collectreversecomplementupstream.append(randirrevmethylationupstream)
+				collectreversecomplementdownstream.append(randirrevmethylationdownstream)
+		concatupstream = pd.concat(collectupstream)
+		concatdownstream = pd.concat(collectdownstream)
+		graph_boundary_methylation(concatupstream,concatdownstream,'all_{0}'.format(paramlabels),'methylationfrequency','cpgsequencecount')
+		if reverseComplement:
+			concatupstreamreverse = pd.concat(collectreversecomplementupstream)
+			concatdownstreamreverse = pd.concat(collectreversecomplementdownstream)
+			graph_boundary_methylation(concatupstreamreverse,concatdownstreamreverse,'all_rc_{0}'.format(paramlabels),'methylationfrequency','cpgsequencecount')
 
 if __name__ == "__main__":
 	main()
