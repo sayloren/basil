@@ -386,9 +386,7 @@ def negative_directionality_corrected_features(negmethylation):
 	rangeDict = dict(zip(originalRange,reverseRange))
 	# Zip reverse complement sequence for replacing the nucleotides for neg methylation
 	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
-	print negmethylation
 	negmethylation['newmethylationlocation'] = negmethylation.methylationlocation.map(rangeDict)
-# 	negmethylation['newmethylationcount'] = negmethylation.groupby(['tissue'])
 	negmethylation['newcytosine'] = negmethylation.cytosine.map(seqDict)
 	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','candgsequencecount','cpgsequencecount','cpgsequencecountsum','methylationcount','tissue']]
 	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','candgsequencecount','cpgsequencecount','cpgsequencecountsum','methylationcount','tissue']
