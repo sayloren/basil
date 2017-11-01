@@ -279,7 +279,7 @@ def threshold_methylation_data(methFeatures):
 	pdmethFeatures = convert_bedtool_to_panda(methFeatures)
 	pdmethThresh = (pdmethFeatures[(pdmethFeatures.loc[:,3] >= methCovThresh) & (pdmethFeatures.loc[:,4] >= methPerThresh)])
 	btmethThresh = convert_panda_to_bed_format(pdmethThresh)
-	print 'Methylation coverage is being thresholded at {0} and percentage at {1}'.format(methCovThresh, methPerThresh)
+# 	print 'Methylation coverage is being thresholded at {0} and percentage at {1}'.format(methCovThresh, methPerThresh)
 	return btmethThresh
 
 # Calculate sums for cpg and cg
@@ -297,6 +297,7 @@ def get_c_and_g_sequency_info(rangeFeatures):
 # Intersect regions from the methylation data with element regions
 def intersect_methylation_data_by_element(rangeFeatures,methFeature):
 	upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
+	print upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum 
 	methylationupstreamboundary = methFeature.intersect(rangeFeatures[['chr','startup','startdown','id']].values.astype(str).tolist(),wb=True,wa=True)
 	if len(methylationupstreamboundary) != 0:
 		pdmethup=convert_bedtool_to_panda(methylationupstreamboundary)
@@ -384,6 +385,7 @@ def collect_methylation_data_by_element(rangeFeatures):
 		downstreamcapture.append(downstreamcverify)
 	upstreamconcat = pd.concat(upstreamcapture)
 	downstreamconcat = pd.concat(downstreamcapture)
+	print upstreamconcat,downstreamconcat
 	return upstreamconcat,downstreamconcat
 
 # For type groups, separate the groups and run the analyses
@@ -415,9 +417,11 @@ def concat_positive_and_negative_directionality_and_get_frequency(posmethylation
 	methlationconcat.dropna(inplace=True,axis=0)
 	bothcpg = methlationconcat.cpgsequencecountsum.unique()
 	bothcandg = methlationconcat.candgsequencecountsum.unique()
-	print bothcpg, bothcandg
 	submethylation['cpgsequencecountsum'] = sum(bothcpg)
 	submethylation['candgsequencecountsum'] = sum(bothcandg)
+	print sum(bothcpg),sum(bothcandg)
+	print posmethylation
+	print newnegmethylation
 	sortedmethylation = submethylation[['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']]
 # 	sortedmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']
 	return sortedmethylation
@@ -466,30 +470,52 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	
 	surroundingfang = periphery*2
 
-	# graph for total cpg in each 'group'
-	# graph for total c and g in each 'group'
 	# print some checks
-	# check reverse complement being recalculated correctly
 
 	if not splitgraphs:
-		gs = gridspec.GridSpec(1,1,height_ratios=[1])
+		gs = gridspec.GridSpec(3,1,height_ratios=[1,1,1])
 		gs.update(hspace=.8)
 		frames = [upstreamhue,downstreamhue]
 		catstreams = pd.concat(frames)
 		ax0 = plt.subplot(gs[0,0])
 		sns.barplot(data=catstreams,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
-		ax0.set_title('% CpGs Methylation Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('% CpGs Methylation',size=8)
+		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('Counts',size=8)
+		ax1 = plt.subplot(gs[1,0])
+		sns.barplot(data=catstreams,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
+		ax1.set_title('Total CpG Presence Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax1.set_ylabel('Counts',size=8)
+		ax2 = plt.subplot(gs[2,0])
+		sns.barplot(data=catstreams,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
+		ax2.set_title('Total CG Presence Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax2.set_ylabel('Counts',size=8)
+
 	else:
-		gs = gridspec.GridSpec(1,2,height_ratios=[1])
+		gs = gridspec.GridSpec(3,2,height_ratios=[1,1,1])
 		ax0 = plt.subplot(gs[0,0])
-		sns.barplot(data=upstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax0)
-		ax0.set_title('% CpGs Methylation Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('% CpGs Methylation',size=8)
-		ax1 = plt.subplot(gs[0,1])
-		sns.barplot(data=downstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
-		ax1.set_title('% CpGs Methylation Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
-		ax1.set_ylabel('% CpGs Methylation',size=8)
+		sns.barplot(data=upstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
+		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('Total Counts',size=8)
+		ax1 = plt.subplot(gs[1,0])
+		sns.barplot(data=upstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
+		ax1.set_title('Total CpG Presence Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax1.set_ylabel('Counts',size=8)
+		ax2 = plt.subplot(gs[2,0])
+		sns.barplot(data=upstreamhue,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
+		ax2.set_title('Total CG Presence Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax2.set_ylabel('Counts',size=8)
+		ax3 = plt.subplot(gs[0,1])
+		sns.barplot(data=downstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax3)
+		ax3.set_title('Total Methylation Counts Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax3.set_ylabel('Counts',size=8)
+		ax4 = plt.subplot(gs[1,1])
+		sns.barplot(data=downstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax4)
+		ax4.set_title('Total CpG Presence Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax4.set_ylabel('Counts',size=8)
+		ax5 = plt.subplot(gs[2,1])
+		sns.barplot(data=downstreamhue,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax5)
+		ax5.set_title('Total CG Presence Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax5.set_ylabel('Counts',size=8)
 
 	sns.despine()
 	pp.savefig()
