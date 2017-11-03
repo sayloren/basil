@@ -459,7 +459,7 @@ def count_methylation_frequency(df):
 # Make the color where hue is determined
 def hue_by_group_color(df):
 	methlationdf = df.dropna(axis=0)
-	methlationdf['barcolor'] = np.where(methlationdf['group'] == 'element','True','False')
+	methlationdf['barcolor'] = np.where(methlationdf['group'] == 'element','Element','Random')
 	return methlationdf
 
 # Make graphs for fangs
@@ -484,7 +484,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 
 	if not splitgraphs:
 		gs = gridspec.GridSpec(2,2,height_ratios=[1,1])
-		gs.update(hspace=.8)
+		gs.update(hspace=1)
 		frames = [upstreamhue,downstreamhue]
 		catstreams = pd.concat(frames)
 		tissueframes = [firsttissueup,firsttissuedown]
@@ -501,9 +501,12 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		sns.barplot(data=cattissues,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
 		ax2.set_title('Total C and Gs',size=8)
 		ax2.set_ylabel('Counts',size=8)
+		ax1.legend_.remove()
+		ax2.legend_.remove()
 
 	else:
 		gs = gridspec.GridSpec(2,3,height_ratios=[1,1],width_ratios=[1,1,3])
+		gs.update(hspace=1)
 		ax0 = plt.subplot(gs[0,2])
 		sns.barplot(data=upstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
 		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
@@ -516,6 +519,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		sns.barplot(data=firsttissueup,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
 		ax2.set_title('Total C and Gs',size=8)
 		ax2.set_ylabel('Counts',size=8)
+		ax1.legend_.remove()
+		ax2.legend_.remove()
+
 		ax3 = plt.subplot(gs[1,2])
 		sns.barplot(data=downstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax3)
 		ax3.set_title('Total Methylation Counts Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
@@ -528,6 +534,8 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		sns.barplot(data=firsttissuedown,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax5)
 		ax5.set_title('Total C and Gs',size=8)
 		ax5.set_ylabel('Counts',size=8)
+		ax4.legend_.remove()
+		ax5.legend_.remove()
 
 	sns.despine()
 	pp.savefig()
