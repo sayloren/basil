@@ -296,8 +296,6 @@ def get_c_and_g_sequency_info(rangeFeatures):
 
 # Intersect regions from the methylation data with element regions
 def intersect_methylation_data_by_element(rangeFeatures,methFeature):
-	upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
-	print upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum 
 	methylationupstreamboundary = methFeature.intersect(rangeFeatures[['chr','startup','startdown','id']].values.astype(str).tolist(),wb=True,wa=True)
 	if len(methylationupstreamboundary) != 0:
 		pdmethup=convert_bedtool_to_panda(methylationupstreamboundary)
@@ -310,10 +308,8 @@ def intersect_methylation_data_by_element(rangeFeatures,methFeature):
 		pdmethup['NucCytosine'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmethup[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmethup['NucBackContext'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmethup[['mchr','BackContext','mstart']].values.astype(str).tolist()))
 		pdmethup['methLoc'] = pdmethup['int'].astype(int)+(pdmethup['mstart'].astype(int)-pdmethup['sBoundary'].astype(int))
-		pdmethup['cpgsequencecountsum'] = upcpgsequencecountsum
-		pdmethup['candgsequencecountsum'] = upcandgsequencecountsum
-		outupstreammethylation = pdmethup[['chr','mstart','mstop','sBoundary','sEdge','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext','cpgsequencecountsum','candgsequencecountsum']]
-		outupstreammethylation.columns = ['chr','methStart','methStop','eleStart','eleStop','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext','cpgsequencecountsum','candgsequencecountsum']
+		outupstreammethylation = pdmethup[['chr','mstart','mstop','sBoundary','sEdge','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext']]
+		outupstreammethylation.columns = ['chr','methStart','methStop','eleStart','eleStop','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext']
 		sortoutupstreammethylation = outupstreammethylation.sort_values(['methLoc'],ascending=True)
 	else:
 		sortoutupstreammethylation = None
@@ -329,10 +325,8 @@ def intersect_methylation_data_by_element(rangeFeatures,methFeature):
 		pdmethdown['NucCytosine']=get_just_fasta_sequence_for_feature(get_bedtools_features(pdmethdown[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmethdown['NucBackContext']=get_just_fasta_sequence_for_feature(get_bedtools_features(pdmethdown[['mchr','BackContext','mstart']].values.astype(str).tolist()))
 		pdmethdown['methLoc'] = pdmethdown['int'].astype(int)+(pdmethdown['mstart'].astype(int)-pdmethdown['eEdge'].astype(int))
-		pdmethdown['cpgsequencecountsum'] = downcpgsequencecountsum
-		pdmethdown['candgsequencecountsum'] = downcandgsequencecountsum
-		outdownstreammethylation=pdmethdown[['chr','mstart','mstop','eEdge','eBoundary','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext','cpgsequencecountsum','candgsequencecountsum']]
-		outdownstreammethylation.columns =['chr','methStart','methStop','eleStart','eleStop','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext','cpgsequencecountsum','candgsequencecountsum']
+		outdownstreammethylation=pdmethdown[['chr','mstart','mstop','eEdge','eBoundary','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext']]
+		outdownstreammethylation.columns =['chr','methStart','methStop','eleStart','eleStop','int','id','methPer','methLoc','methCov','Nuc','NucContext','NucCytosine','NucBackContext']
 		sortoutdownstreammethylation=outdownstreammethylation.sort_values(['methLoc'],ascending=True)
 	else:
 		sortoutdownstreammethylation= None
@@ -365,12 +359,21 @@ def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column)
 		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'C'),'Context'] = merge['NucContext']
 		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'G'),'Context'] = merge['NucBackContext']
 		merge['methylationcount'] = len(merge.index)
-		subMeth = merge[['chr','id','methLoc','methPer','Cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']]
-		subMeth.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']
+		subMeth = merge[['chr','id','methLoc','methPer','Cytosine','methylationcount','tissue']]
+		subMeth.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','tissue']
 	else:
-		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum'])
+		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount'])
 		subMeth['tissue'] = name.replace('.bed','')
 	return subMeth
+
+# Add columns for c and g content
+def columns_for_nucleotide_content(rangeFeatures,upstreamcverify,downstreamcverify):
+	upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
+	upstreamcverify['cpgsequencecountsum'] = upcpgsequencecountsum
+	upstreamcverify['candgsequencecountsum'] = upcandgsequencecountsum
+	downstreamcverify['cpgsequencecountsum'] = downcpgsequencecountsum
+	downstreamcverify['candgsequencecountsum'] = downcandgsequencecountsum
+	return upstreamcverify,downstreamcverify
 
 # Run the analysis to extract percentage, frequency, coverage, location, context, and direction
 def collect_methylation_data_by_element(rangeFeatures):
@@ -381,11 +384,11 @@ def collect_methylation_data_by_element(rangeFeatures):
 		upstreamposition,downstreamposition=intersect_methylation_data_by_element(rangeFeatures,pdmethThresh)
 		upstreamcverify=make_methylation_data_frame_and_verify_cytosine(upstreamposition,methName,rangeFeatures,'upstreamsequence')
 		downstreamcverify=make_methylation_data_frame_and_verify_cytosine(downstreamposition,methName,rangeFeatures,'downstreamsequence')
-		upstreamcapture.append(upstreamcverify)
-		downstreamcapture.append(downstreamcverify)
+		upstreamnuc,downstreamnuc=columns_for_nucleotide_content(rangeFeatures,upstreamcverify,downstreamcverify)
+		upstreamcapture.append(upstreamnuc)
+		downstreamcapture.append(downstreamnuc)
 	upstreamconcat = pd.concat(upstreamcapture)
 	downstreamconcat = pd.concat(downstreamcapture)
-	print upstreamconcat,downstreamconcat
 	return upstreamconcat,downstreamconcat
 
 # For type groups, separate the groups and run the analyses
@@ -414,16 +417,19 @@ def concat_positive_and_negative_directionality_and_get_frequency(posmethylation
 	frames = [posmethylation,newnegmethylation]
 	methlationconcat = pd.concat(frames)
 	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','tissue']]
-	methlationconcat.dropna(inplace=True,axis=0)
 	bothcpg = methlationconcat.cpgsequencecountsum.unique()
+	bothcpg = bothcpg[~pd.isnull(bothcpg)]
 	bothcandg = methlationconcat.candgsequencecountsum.unique()
-	submethylation['cpgsequencecountsum'] = sum(bothcpg)
-	submethylation['candgsequencecountsum'] = sum(bothcandg)
-	print sum(bothcpg),sum(bothcandg)
-	print posmethylation
-	print newnegmethylation
+	bothcandg = bothcandg[~pd.isnull(bothcandg)]
+	if len(bothcpg) == 1:
+		submethylation['cpgsequencecountsum'] = bothcpg*2
+	else:
+		submethylation['cpgsequencecountsum'] = sum(bothcpg)
+	if len(bothcandg) == 1:
+		submethylation['candgsequencecountsum'] = bothcandg*2
+	else:
+		submethylation['candgsequencecountsum'] = sum(bothcandg)
 	sortedmethylation = submethylation[['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']]
-# 	sortedmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue']
 	return sortedmethylation
 
 # Methylation rcsorting
@@ -463,58 +469,64 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	pp = PdfPages('Methylation_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-	sns.set_palette("husl",n_colors=6)
-
+	sns.set_palette("husl",n_colors=2)
+	
 	upstreamhue = hue_by_group_color(upstream)
 	downstreamhue = hue_by_group_color(downstream)
+	
+	firsttissue = upstreamhue.iloc[0]['tissue']
+	firsttissueup = (upstreamhue[upstreamhue['tissue']==firsttissue])
+	firsttissuedown = (downstreamhue[downstreamhue['tissue']==firsttissue])
 	
 	surroundingfang = periphery*2
 
 	# print some checks
 
 	if not splitgraphs:
-		gs = gridspec.GridSpec(3,1,height_ratios=[1,1,1])
+		gs = gridspec.GridSpec(2,2,height_ratios=[1,1])
 		gs.update(hspace=.8)
 		frames = [upstreamhue,downstreamhue]
 		catstreams = pd.concat(frames)
-		ax0 = plt.subplot(gs[0,0])
+		tissueframes = [firsttissueup,firsttissuedown]
+		cattissues
+		ax0 = plt.subplot(gs[0,:])
 		sns.barplot(data=catstreams,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
 		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
 		ax0.set_ylabel('Counts',size=8)
 		ax1 = plt.subplot(gs[1,0])
-		sns.barplot(data=catstreams,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
-		ax1.set_title('Total CpG Presence Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		sns.barplot(data=cattissues,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
+		ax1.set_title('Total CpGs',size=8)
 		ax1.set_ylabel('Counts',size=8)
-		ax2 = plt.subplot(gs[2,0])
-		sns.barplot(data=catstreams,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
-		ax2.set_title('Total CG Presence Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax2 = plt.subplot(gs[1,1])
+		sns.barplot(data=cattissues,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
+		ax2.set_title('Total C and Gs',size=8)
 		ax2.set_ylabel('Counts',size=8)
 
 	else:
-		gs = gridspec.GridSpec(3,2,height_ratios=[1,1,1])
-		ax0 = plt.subplot(gs[0,0])
+		gs = gridspec.GridSpec(2,3,height_ratios=[1,1],width_ratios=[1,1,3])
+		ax0 = plt.subplot(gs[0,2])
 		sns.barplot(data=upstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
 		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('Total Counts',size=8)
-		ax1 = plt.subplot(gs[1,0])
-		sns.barplot(data=upstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
-		ax1.set_title('Total CpG Presence Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('Counts',size=8)
+		ax1 = plt.subplot(gs[0,1])
+		sns.barplot(data=firsttissueup,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
+		ax1.set_title('Total CpGs',size=8)
 		ax1.set_ylabel('Counts',size=8)
-		ax2 = plt.subplot(gs[2,0])
-		sns.barplot(data=upstreamhue,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
-		ax2.set_title('Total CG Presence Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax2 = plt.subplot(gs[0,0])
+		sns.barplot(data=firsttissueup,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax2)
+		ax2.set_title('Total C and Gs',size=8)
 		ax2.set_ylabel('Counts',size=8)
-		ax3 = plt.subplot(gs[0,1])
+		ax3 = plt.subplot(gs[1,2])
 		sns.barplot(data=downstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax3)
 		ax3.set_title('Total Methylation Counts Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
 		ax3.set_ylabel('Counts',size=8)
 		ax4 = plt.subplot(gs[1,1])
-		sns.barplot(data=downstreamhue,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax4)
-		ax4.set_title('Total CpG Presence Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		sns.barplot(data=firsttissuedown,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax4)
+		ax4.set_title('Total CpGs',size=8)
 		ax4.set_ylabel('Counts',size=8)
-		ax5 = plt.subplot(gs[2,1])
-		sns.barplot(data=downstreamhue,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax5)
-		ax5.set_title('Total CG Presence Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax5 = plt.subplot(gs[1,0])
+		sns.barplot(data=firsttissuedown,x='tissue',y='candgsequencecountsum',hue='barcolor',ax=ax5)
+		ax5.set_title('Total C and Gs',size=8)
 		ax5.set_ylabel('Counts',size=8)
 
 	sns.despine()
