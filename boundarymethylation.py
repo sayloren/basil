@@ -484,7 +484,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 
 	if not splitgraphs:
 		gs = gridspec.GridSpec(2,2,height_ratios=[1,1])
-		gs.update(hspace=1)
+		gs.update(hspace=.8)
 		frames = [upstreamhue,downstreamhue]
 		catstreams = pd.concat(frames)
 		tissueframes = [firsttissueup,firsttissuedown]
@@ -505,8 +505,8 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		ax2.legend_.remove()
 
 	else:
-		gs = gridspec.GridSpec(2,3,height_ratios=[1,1],width_ratios=[1,1,3])
-		gs.update(hspace=1)
+		gs = gridspec.GridSpec(2,3,height_ratios=[1,1],width_ratios=[1,1,4])
+		gs.update(hspace=.8)
 		ax0 = plt.subplot(gs[0,2])
 		sns.barplot(data=upstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
 		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
