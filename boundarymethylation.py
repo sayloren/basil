@@ -272,7 +272,100 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
 		rangeFeatures=rangeFeatures.drop(['feature'],axis=1)
+		numval = rangeFeatures['directionality'].value_counts()
+	print '{0} in {1}'.format(numval,fileName)
 	return rangeFeatures
+
+# get the reverse complement
+def reverse_complement_dictionary(sequence):
+	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
+	return "".join([seqDict[base] for base in reversed(sequence)])
+
+# Concat the negative and positive groups together and get the updated frequency
+def concat_positive_and_negative_directionality_and_get_frequency(posmethylation,newnegmethylation):
+	# Concat pos and revised neg meth dfs
+	frames = [posmethylation,newnegmethylation]
+	methlationconcat = pd.concat(frames)
+	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','tissue']]
+	submethylation['methylationcount'] =  submethylation.groupby(['tissue'])['tissue'].transform('count')
+	return submethylation
+
+# Correct the Sequence of elements assigned negative directionality
+def negative_directionality_corrected_features(negmethylation):
+	# Zip reversed range to make a dictionary for replacing the location of the neg methylation
+	originalRange = range(0,periphery*2)
+	reverseRange = originalRange[::-1]
+	rangeDict = dict(zip(originalRange,reverseRange))
+	# Zip reverse complement sequence for replacing the nucleotides for neg methylation
+	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
+	negmethylation['newmethylationlocation'] = negmethylation.methylationlocation.map(rangeDict)
+	negmethylation['newcytosine'] = negmethylation.cytosine.map(seqDict)
+	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','tissue']]
+	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','tissue']
+	return newnegmethylation
+
+# Calculate sums for cpg and cg
+def get_c_and_g_sequency_info(rangeFeatures):
+	rangeFeatures['upcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['upstreamsequence'].count("CG")),axis=1)
+	upcpgsequencecountsum = rangeFeatures['upcpgsequencecount'].sum()
+# 	rangeFeatures['upcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['upstreamsequence'].count("G")+row['upstreamsequence'].count("C")),axis=1)
+# 	upcandgsequencecountsum = rangeFeatures['upcandgsequencecount'].sum()
+	rangeFeatures['downcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['downstreamsequence'].count("CG")),axis=1)
+	downcpgsequencecountsum = rangeFeatures['downcpgsequencecount'].sum()
+# 	rangeFeatures['downcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['downstreamsequence'].count("G")+row['downstreamsequence'].count("C")),axis=1)
+# 	downcandgsequencecountsum = rangeFeatures['downcandgsequencecount'].sum()
+	return upcpgsequencecountsum,downcpgsequencecountsum
+
+# Add columns for c and g content
+def columns_for_nucleotide_and_methylation_content(rangeFeatures,upstreamcverify,downstreamcverify):
+	upcpgsequencecountsum,downcpgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
+
+	upstreamcverify['cpgsequencecountsum'] = upcpgsequencecountsum
+	upstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
+	upstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
+	upstreamcverify['percentageunmethylatedcpg'] = upstreamcverify['methylationcount']/upstreamcverify['cpgsequencecountsum']
+	upstreamcverify['percentageunmethylatedcpgcombineboundary'] = upstreamcverify['methylationcountcombineboundary']/upstreamcverify['cpgsequencecountsumcombineboundary']
+
+	downstreamcverify['cpgsequencecountsum'] = downcpgsequencecountsum
+	downstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
+	downstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
+	downstreamcverify['percentageunmethylatedcpg'] = downstreamcverify['methylationcount']/downstreamcverify['cpgsequencecountsum']
+	downstreamcverify['percentageunmethylatedcpgcombineboundary'] = downstreamcverify['methylationcountcombineboundary']/downstreamcverify['cpgsequencecountsumcombineboundary']
+	return upstreamcverify,downstreamcverify
+
+def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column):
+	if methdf is not None:
+		methdf['tissue'] = name.replace('.bed','')
+		subfeatures = features[['id',column]]
+		merge = pd.merge(methdf,subfeatures,how='left',on='id')
+		merge['methLocBEnd'] = merge['methLoc'] - 1
+		merge['methLocCEnd'] = merge['methLoc'] + 1
+		merge['methLocEnd'] = merge['methLoc'] + 2
+		merge['Cytosine'] = merge.apply(lambda row: row[column][row['methLoc']:row['methLocCEnd']],axis=1)
+		merge['Context'] = merge.apply(lambda row: row[column][row['methLocCEnd']:row['methLocEnd']],axis=1)
+		merge['BackContext'] = merge.apply(lambda row: row[column][row['methLocBEnd']:row['methLoc']],axis=1)
+		merge['ContextCheck'] = merge.apply(lambda row: row[column][row['methLocBEnd']:row['methLocEnd']],axis=1)
+		merge['Nuc'] = merge['Nuc'].str.upper()
+		merge['sameSeq'] = merge['Nuc'] == merge['ContextCheck']
+		# If the nucleotide in the cytosine column is 'G', make the context the other 
+		# direction (reverse complement later, in graphing, in order to differentiate 
+		# between strands)
+		merge.loc[merge['Cytosine'] == 'G', 'Context'] = merge['BackContext']
+		# sameSeq might be 'False' if 1) the c is at the end border for the downstream 
+		# boundary, 2) the sequence bridges the sequence split for the upstream boundary
+		falseMeth = (merge[merge['sameSeq'] == False])
+		# Conditionally update contexts where False for matches between sequence and 
+		# methylation nucleotides- c get context, and g gets backcontext
+		merge.loc[merge['sameSeq'] == False,'Cytosine'] = merge['NucCytosine']
+		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'C'),'Context'] = merge['NucContext']
+		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'G'),'Context'] = merge['NucBackContext']
+		merge['methylationcount'] = len(merge.index)
+		subMeth = merge[['chr','id','methLoc','methPer','Cytosine','methylationcount','tissue']]
+		subMeth.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','tissue']
+	else:
+		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount'])
+		subMeth['tissue'] = name.replace('.bed','')
+	return subMeth
 
 # Threshold methylation data by coverage and percentage
 def threshold_methylation_data(methFeatures,methName):
@@ -284,18 +377,6 @@ def threshold_methylation_data(methFeatures,methName):
 	checklength = initiallength - len(pdmethThresh.index)
 	print 'there were {0} out of {1} total removed by thresholding {2}'.format(checklength,initiallength,methName)
 	return btmethThresh
-
-# Calculate sums for cpg and cg
-def get_c_and_g_sequency_info(rangeFeatures):
-	rangeFeatures['upcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['upstreamsequence'].count("CG")),axis=1)
-	upcpgsequencecountsum = rangeFeatures['upcpgsequencecount'].sum()
-	rangeFeatures['upcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['upstreamsequence'].count("G")+row['upstreamsequence'].count("C")),axis=1)
-	upcandgsequencecountsum = rangeFeatures['upcandgsequencecount'].sum()
-	rangeFeatures['downcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['downstreamsequence'].count("CG")),axis=1)
-	downcpgsequencecountsum = rangeFeatures['downcpgsequencecount'].sum()
-	rangeFeatures['downcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['downstreamsequence'].count("G")+row['downstreamsequence'].count("C")),axis=1)
-	downcandgsequencecountsum = rangeFeatures['downcandgsequencecount'].sum()
-	return upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum
 
 # Intersect regions from the methylation data with element regions
 def intersect_methylation_data_by_element(rangeFeatures,methFeature,methName):
@@ -340,49 +421,6 @@ def intersect_methylation_data_by_element(rangeFeatures,methFeature,methName):
 		sortoutdownstreammethylation= None
 	return sortoutupstreammethylation,sortoutdownstreammethylation
 
-def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column):
-	if methdf is not None:
-		methdf['tissue'] = name.replace('.bed','')
-		subfeatures = features[['id',column]]
-		merge = pd.merge(methdf,subfeatures,how='left',on='id')
-		merge['methLocBEnd'] = merge['methLoc'] - 1
-		merge['methLocCEnd'] = merge['methLoc'] + 1
-		merge['methLocEnd'] = merge['methLoc'] + 2
-		merge['Cytosine'] = merge.apply(lambda row: row[column][row['methLoc']:row['methLocCEnd']],axis=1)
-		merge['Context'] = merge.apply(lambda row: row[column][row['methLocCEnd']:row['methLocEnd']],axis=1)
-		merge['BackContext'] = merge.apply(lambda row: row[column][row['methLocBEnd']:row['methLoc']],axis=1)
-		merge['ContextCheck'] = merge.apply(lambda row: row[column][row['methLocBEnd']:row['methLocEnd']],axis=1)
-		merge['Nuc'] = merge['Nuc'].str.upper()
-		merge['sameSeq'] = merge['Nuc'] == merge['ContextCheck']
-		# If the nucleotide in the cytosine column is 'G', make the context the other 
-		# direction (reverse complement later, in graphing, in order to differentiate 
-		# between strands)
-		merge.loc[merge['Cytosine'] == 'G', 'Context'] = merge['BackContext']
-		# sameSeq might be 'False' if 1) the c is at the end border for the downstream 
-		# boundary, 2) the sequence bridges the sequence split for the upstream boundary
-		falseMeth = (merge[merge['sameSeq'] == False])
-		# Conditionally update contexts where False for matches between sequence and 
-		# methylation nucleotides- c get context, and g gets backcontext
-		merge.loc[merge['sameSeq'] == False,'Cytosine'] = merge['NucCytosine']
-		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'C'),'Context'] = merge['NucContext']
-		merge.loc[(merge['sameSeq'] == False) & (merge['NucCytosine'] == 'G'),'Context'] = merge['NucBackContext']
-		merge['methylationcount'] = len(merge.index)
-		subMeth = merge[['chr','id','methLoc','methPer','Cytosine','methylationcount','tissue']]
-		subMeth.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','tissue']
-	else:
-		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount'])
-		subMeth['tissue'] = name.replace('.bed','')
-	return subMeth
-
-# Add columns for c and g content
-def columns_for_nucleotide_content(rangeFeatures,upstreamcverify,downstreamcverify):
-	upcpgsequencecountsum,upcandgsequencecountsum,downcpgsequencecountsum,downcandgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
-	upstreamcverify['cpgsequencecountsum'] = upcpgsequencecountsum
-	upstreamcverify['candgsequencecountsum'] = upcandgsequencecountsum
-	downstreamcverify['cpgsequencecountsum'] = downcpgsequencecountsum
-	downstreamcverify['candgsequencecountsum'] = downcandgsequencecountsum
-	return upstreamcverify,downstreamcverify
-
 # Run the analysis to extract percentage, frequency, coverage, location, context, and direction
 def collect_methylation_data_by_element(rangeFeatures):
 	upstreamcapture, downstreamcapture = [], []
@@ -392,55 +430,12 @@ def collect_methylation_data_by_element(rangeFeatures):
 		upstreamposition,downstreamposition=intersect_methylation_data_by_element(rangeFeatures,pdmethThresh,methName)
 		upstreamcverify=make_methylation_data_frame_and_verify_cytosine(upstreamposition,methName,rangeFeatures,'upstreamsequence')
 		downstreamcverify=make_methylation_data_frame_and_verify_cytosine(downstreamposition,methName,rangeFeatures,'downstreamsequence')
-		upstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-		downstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-		upstreamnuc,downstreamnuc=columns_for_nucleotide_content(rangeFeatures,upstreamcverify,downstreamcverify)
+		upstreamnuc,downstreamnuc=columns_for_nucleotide_and_methylation_content(rangeFeatures,upstreamcverify,downstreamcverify)
 		upstreamcapture.append(upstreamnuc)
 		downstreamcapture.append(downstreamnuc)
 	upstreamconcat = pd.concat(upstreamcapture)
 	downstreamconcat = pd.concat(downstreamcapture)
 	return upstreamconcat,downstreamconcat
-
-# For type groups, separate the groups and run the analyses
-def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
-	bool = (directionFeatures[directionFeatures[typecolumn] == List])
-	upstream,downstream = collect_methylation_data_by_element(bool)
-	return bool,upstream,downstream
-
-# Correct the Sequence of elements assigned negative directionality
-def negative_directionality_corrected_features(negmethylation):
-	# Zip reversed range to make a dictionary for replacing the location of the neg methylation
-	originalRange = range(0,periphery*2)
-	reverseRange = originalRange[::-1]
-	rangeDict = dict(zip(originalRange,reverseRange))
-	# Zip reverse complement sequence for replacing the nucleotides for neg methylation
-	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
-	negmethylation['newmethylationlocation'] = negmethylation.methylationlocation.map(rangeDict)
-	negmethylation['newcytosine'] = negmethylation.cytosine.map(seqDict)
-	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue','methylationcountcombineboundary']]
-	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue','methylationcountcombineboundary']
-	return newnegmethylation
-
-# Concat the negative and positive groups together and get the updated frequency
-def concat_positive_and_negative_directionality_and_get_frequency(posmethylation,newnegmethylation):
-	# Concat pos and revised neg meth dfs
-	frames = [posmethylation,newnegmethylation]
-	methlationconcat = pd.concat(frames)
-	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','tissue','methylationcountcombineboundary']]
-	bothcpg = methlationconcat.cpgsequencecountsum.unique()
-	bothcpg = bothcpg[~pd.isnull(bothcpg)]
-	bothcandg = methlationconcat.candgsequencecountsum.unique()
-	bothcandg = bothcandg[~pd.isnull(bothcandg)]
-	if len(bothcpg) == 1:
-		submethylation['cpgsequencecountsum'] = bothcpg*2
-	else:
-		submethylation['cpgsequencecountsum'] = sum(bothcpg)
-	if len(bothcandg) == 1:
-		submethylation['candgsequencecountsum'] = bothcandg*2
-	else:
-		submethylation['candgsequencecountsum'] = sum(bothcandg)
-	sortedmethylation = submethylation[['chr','id','methylationlocation','methylationpercentage','cytosine','methylationcount','cpgsequencecountsum','candgsequencecountsum','tissue','methylationcountcombineboundary']]
-	return sortedmethylation
 
 # Methylation rcsorting
 def sort_methylation_by_directionality(negStr,posStr):
@@ -450,6 +445,14 @@ def sort_methylation_by_directionality(negStr,posStr):
 	newnegmethylationdownstream = negative_directionality_corrected_features(negmethylationdownstream)
 	sortedmethylationupstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationupstream,newnegmethylationupstream)
 	sortedmethylationdownstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationdownstream,newnegmethylationdownstream)
+	posSeq = posStr[['chr','start','end','upstreamsequence','downstreamsequence']]
+	negSeq = negStr[['chr','start','end','upstreamsequence','downstreamsequence']]
+	negSeq['newupstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['upstreamsequence']),axis=1)
+	negSeq['newdownstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['downstreamsequence']),axis=1)
+	newnegSeq = negSeq[['chr','start','end','newupstreamsequence','newdownstreamsequence']]
+	newnegSeq.columns = ['chr','start','end','upstreamsequence','downstreamsequence']
+	catStr = pd.concat([posSeq,newnegSeq],axis=0,ignore_index=True)
+	sortedmethylationupstream,sortedmethylationdownstream = columns_for_nucleotide_and_methylation_content(catStr,sortedmethylationupstream,sortedmethylationdownstream)
 	return sortedmethylationupstream,sortedmethylationdownstream
 
 # Separate on plus and minus orientation, rcsort and return methylation
@@ -459,12 +462,21 @@ def sort_elements_by_directionality(directionFeatures,columnCompare):
 	upstream,downstream = sort_methylation_by_directionality(negassingment,posassingment)
 	return upstream,downstream
 
+# For type groups, separate the groups and run the analyses
+def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
+	bool = (directionFeatures[directionFeatures[typecolumn] == List])
+	upstream,downstream = collect_methylation_data_by_element(bool)
+	return bool,upstream,downstream
+
 # If want to calculate frequency - might still need to remove duplicates
-def count_methylation_frequency(df):
-	methlationdf = df.dropna(axis=0)
-	methlationdf['methylationfrequency'] = methlationdf.groupby(['methylationlocation','tissue','group'])['methylationlocation'].transform('count')
-# 	methlationdf.sort_values(['methylationfrequency'],ascending=True).drop_duplicates(['methylationlocation','tissue','cytosine','group'],keep='last',inplace=True)
-	return methlationdf
+def calculate_methylation_frequency_remove_duplicates(methylationdf):
+	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')# methylationlocation
+	print methylationdf
+# 	methylationsort = methylationdf.sort_values(['methylationcount'],ascending=True)
+# 	print methylationsort
+	methylationdup = methylationdf.drop_duplicates(keep='last',inplace=True)#methylationlocation,cytosine,,['methylationfrequency','tissue','group'],
+	print methylationdup
+	return methylationdup
 
 # Make the color where hue is determined
 def hue_by_group_color(df):
@@ -484,13 +496,14 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	upstreamhue = hue_by_group_color(upstream)
 	downstreamhue = hue_by_group_color(downstream)
 	
-	firsttissue = upstreamhue.iloc[0]['tissue']
-	firsttissueup = (upstreamhue[upstreamhue['tissue']==firsttissue])
-	firsttissuedown = (downstreamhue[downstreamhue['tissue']==firsttissue])
+	upstreamcalc = calculate_methylation_frequency_remove_duplicates(upstreamhue)
+	downstreamcalc = calculate_methylation_frequency_remove_duplicates(downstreamhue) 
+	
+	firsttissue = upstreamcalc.iloc[0]['tissue']
+	firsttissueup = (upstreamcalc[upstreamcalc['tissue']==firsttissue])
+	firsttissuedown = (downstreamcalc[downstreamcalc['tissue']==firsttissue])
 	
 	surroundingfang = periphery*2
-
-	# number of elements print on graph, add number to bar
 
 	if not splitgraphs:
 		gs = gridspec.GridSpec(1,1,height_ratios=[1])
@@ -500,11 +513,12 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		tissueframes = [firsttissueup,firsttissuedown]
 		cattissues = pd.concat(tissueframes)
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=catstreams,x='tissue',y='methylationcountcombineboundary',hue='barcolor',ax=ax0)
-		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('Counts',size=8)
-		for p in ax0.patches:
-			ax0.annotate(str(p.get_height()), (p.get_x() * 2, p.get_height() * 2))
+		# needs work to make sure summing is correct - basically do groupby after concat
+		sns.barplot(data=catstreams,x='tissue',y='methylationcountcombineboundary',hue='barcolor',ax=ax0)#percentageunmethylatedcpgcombineboundary
+		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('Fraction',size=8)
+# 		for p in ax0.patches:
+# 			ax0.annotate(str(p.get_height()), (p.get_x(), p.get_height()))
 # 		ax1 = plt.subplot(gs[1,0])
 # 		sns.barplot(data=cattissues,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
 # 		ax1.set_title('Total CpGs',size=8)
@@ -520,11 +534,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 		gs.update(hspace=.8)
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=upstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax0)
-		ax0.set_title('Total Methylation Counts Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('Counts',size=8)
-		for p in ax0.patches:
-			ax0.annotate(str(p.get_height()), (p.get_x() * 2, p.get_height() * 2))
+		sns.barplot(data=upstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax0)#percentageunmethylatedcpg
+		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('Fraction',size=8)
 # 		ax1 = plt.subplot(gs[0,1])
 # 		sns.barplot(data=firsttissueup,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
 # 		ax1.set_title('Total CpGs',size=8)
@@ -536,11 +548,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 # 		ax1.legend_.remove()
 # 		ax2.legend_.remove()
 		ax3 = plt.subplot(gs[1,:])
-		sns.barplot(data=downstreamhue,x='tissue',y='methylationcount',hue='barcolor',ax=ax3)
-		ax3.set_title('Total Methylation Counts Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
-		ax3.set_ylabel('Counts',size=8)
-		for p in ax3.patches:
-			ax3.annotate(str(p.get_height()), (p.get_x() * 2, p.get_height() * 2))
+		sns.barplot(data=downstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax3)#percentageunmethylatedcpg
+		ax3.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax3.set_ylabel('Fraction',size=8)
 # 		ax4 = plt.subplot(gs[1,1])
 # 		sns.barplot(data=firsttissuedown,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax4)
 # 		ax4.set_title('Total CpGs',size=8)
@@ -563,6 +573,7 @@ def make_probabilites_for_direction(directionFeatures,probabilitycolumn):
 	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()/lenAll
 	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()/lenAll
 	probOptions = [numMinus,numPlus,numEqual]
+	print 'made probabilities for df: {0} for +, {1} for - and {2} for ='.format(numPlus,numMinus,numEqual)
 	return probOptions
 
 def save_panda_data_frame(df,filename):
