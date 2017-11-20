@@ -323,12 +323,6 @@ def columns_for_nucleotide_and_methylation_content(rangeFeatures,upstreamcverify
 	upstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
 	downstreamcverify['cpgsequencecountsum'] = downcpgsequencecountsum
 	downstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
-# 	downstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-# 	downstreamcverify['percentageunmethylatedcpg'] = downstreamcverify['methylationcount']/downstreamcverify['cpgsequencecountsum']
-# 	downstreamcverify['percentageunmethylatedcpgcombineboundary'] = downstreamcverify['methylationcountcombineboundary']/downstreamcverify['cpgsequencecountsumcombineboundary']
-# 	upstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-# 	upstreamcverify['percentageunmethylatedcpg'] = upstreamcverify['methylationcount']/upstreamcverify['cpgsequencecountsum']
-# 	upstreamcverify['percentageunmethylatedcpgcombineboundary'] = upstreamcverify['methylationcountcombineboundary']/upstreamcverify['cpgsequencecountsumcombineboundary']
 	return upstreamcverify,downstreamcverify
 
 def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column):
@@ -480,7 +474,7 @@ def hue_by_group_color(df):
 	return methlationdf
 
 def get_percentage_cpg_methylated(methylationdf):
-	methylationdf['percentcpgmethylated'] = methylationdf
+	methylationdf['percentcpgmethylated'] = methylationdf['methylationfrequency']/methylationdf['cpgsequencecountsum']*100
 	return methylationdf
 
 # Make graphs for fangs
@@ -495,8 +489,11 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	upstreamhue = hue_by_group_color(upstream)
 	downstreamhue = hue_by_group_color(downstream)
 	
-	upstreamcalc = calculate_methylation_frequency_remove_duplicates(upstreamhue)
-	downstreamcalc = calculate_methylation_frequency_remove_duplicates(downstreamhue) 
+	upstreamfreq = calculate_methylation_frequency_remove_duplicates(upstreamhue)
+	downstreamfreq = calculate_methylation_frequency_remove_duplicates(downstreamhue) 
+	
+	upstreamcalc = get_percentage_cpg_methylated(upstreamfreq)
+	downstreamcalc = get_percentage_cpg_methylated(downstreamfreq)
 	
 # 	firsttissue = upstreamcalc.iloc[0]['tissue']
 # 	firsttissueup = (upstreamcalc[upstreamcalc['tissue']==firsttissue])
@@ -507,13 +504,16 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	if not splitgraphs:
 		gs = gridspec.GridSpec(1,1,height_ratios=[1])
 		gs.update(hspace=.8)
-		frames = [upstreamhue,downstreamhue]
+		
+		frames = [upstreamcalc,downstreamcalc]
 		catstreams = pd.concat(frames)
 		catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
+		catstream['percentcpgmethylatedboundaries'] = catstream['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
+		
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=catstreams,x='tissue',y='methylationfrequencyboundaries',hue='barcolor',ax=ax0) #percentageunmethylatedcpgcombineboundary
-		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('Fraction',size=8)
+		sns.barplot(data=catstreams,x='tissue',y='percentcpgmethylatedboundaries',hue='barcolor',ax=ax0) #percentageunmethylatedcpgcombineboundary
+		ax0.set_title('Percent CpGs Methylated Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('%',size=8)
 # 		tissueframes = [firsttissueup,firsttissuedown]
 # 		cattissues = pd.concat(tissueframes)
 # 		for p in ax0.patches:
@@ -533,9 +533,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 		gs.update(hspace=.8)
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=upstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax0) #percentageunmethylatedcpg
-		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
-		ax0.set_ylabel('Fraction',size=8)
+		sns.barplot(data=upstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax0) #percentageunmethylatedcpg
+		ax0.set_title('Percent CpGs Methylated Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
+		ax0.set_ylabel('%',size=8)
 # 		ax1 = plt.subplot(gs[0,1])
 # 		sns.barplot(data=firsttissueup,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax1)
 # 		ax1.set_title('Total CpGs',size=8)
@@ -547,9 +547,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 # 		ax1.legend_.remove()
 # 		ax2.legend_.remove()
 		ax3 = plt.subplot(gs[1,:])
-		sns.barplot(data=downstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax3) #percentageunmethylatedcpg
-		ax3.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
-		ax3.set_ylabel('Fraction',size=8)
+		sns.barplot(data=downstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax3) #percentageunmethylatedcpg
+		ax3.set_title('Percent CpGs Methylated Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
+		ax3.set_ylabel('%',size=8)
 # 		ax4 = plt.subplot(gs[1,1])
 # 		sns.barplot(data=firsttissuedown,x='tissue',y='cpgsequencecountsum',hue='barcolor',ax=ax4)
 # 		ax4.set_title('Total CpGs',size=8)
