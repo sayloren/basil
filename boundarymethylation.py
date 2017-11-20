@@ -308,10 +308,10 @@ def negative_directionality_corrected_features(negmethylation):
 def get_c_and_g_sequency_info(rangeFeatures):
 	rangeFeatures['upcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['upstreamsequence'].count("CG")),axis=1)
 	upcpgsequencecountsum = rangeFeatures['upcpgsequencecount'].sum()
-# 	rangeFeatures['upcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['upstreamsequence'].count("G")+row['upstreamsequence'].count("C")),axis=1)
-# 	upcandgsequencecountsum = rangeFeatures['upcandgsequencecount'].sum()
 	rangeFeatures['downcpgsequencecount'] = rangeFeatures.apply(lambda row: float(row['downstreamsequence'].count("CG")),axis=1)
 	downcpgsequencecountsum = rangeFeatures['downcpgsequencecount'].sum()
+# 	rangeFeatures['upcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['upstreamsequence'].count("G")+row['upstreamsequence'].count("C")),axis=1)
+# 	upcandgsequencecountsum = rangeFeatures['upcandgsequencecount'].sum()
 # 	rangeFeatures['downcandgsequencecount'] = rangeFeatures.apply(lambda row: (row['downstreamsequence'].count("G")+row['downstreamsequence'].count("C")),axis=1)
 # 	downcandgsequencecountsum = rangeFeatures['downcandgsequencecount'].sum()
 	return upcpgsequencecountsum,downcpgsequencecountsum
@@ -319,18 +319,16 @@ def get_c_and_g_sequency_info(rangeFeatures):
 # Add columns for c and g content
 def columns_for_nucleotide_and_methylation_content(rangeFeatures,upstreamcverify,downstreamcverify):
 	upcpgsequencecountsum,downcpgsequencecountsum = get_c_and_g_sequency_info(rangeFeatures)
-
 	upstreamcverify['cpgsequencecountsum'] = upcpgsequencecountsum
 	upstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
-	upstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-	upstreamcverify['percentageunmethylatedcpg'] = upstreamcverify['methylationcount']/upstreamcverify['cpgsequencecountsum']
-	upstreamcverify['percentageunmethylatedcpgcombineboundary'] = upstreamcverify['methylationcountcombineboundary']/upstreamcverify['cpgsequencecountsumcombineboundary']
-
 	downstreamcverify['cpgsequencecountsum'] = downcpgsequencecountsum
 	downstreamcverify['cpgsequencecountsumcombineboundary'] = upcpgsequencecountsum + downcpgsequencecountsum
-	downstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
-	downstreamcverify['percentageunmethylatedcpg'] = downstreamcverify['methylationcount']/downstreamcverify['cpgsequencecountsum']
-	downstreamcverify['percentageunmethylatedcpgcombineboundary'] = downstreamcverify['methylationcountcombineboundary']/downstreamcverify['cpgsequencecountsumcombineboundary']
+# 	downstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
+# 	downstreamcverify['percentageunmethylatedcpg'] = downstreamcverify['methylationcount']/downstreamcverify['cpgsequencecountsum']
+# 	downstreamcverify['percentageunmethylatedcpgcombineboundary'] = downstreamcverify['methylationcountcombineboundary']/downstreamcverify['cpgsequencecountsumcombineboundary']
+# 	upstreamcverify['methylationcountcombineboundary'] = len(upstreamcverify.index) + len(downstreamcverify.index)
+# 	upstreamcverify['percentageunmethylatedcpg'] = upstreamcverify['methylationcount']/upstreamcverify['cpgsequencecountsum']
+# 	upstreamcverify['percentageunmethylatedcpgcombineboundary'] = upstreamcverify['methylationcountcombineboundary']/upstreamcverify['cpgsequencecountsumcombineboundary']
 	return upstreamcverify,downstreamcverify
 
 def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column):
@@ -470,9 +468,9 @@ def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
 
 # If want to calculate frequency - might still need to remove duplicates
 def calculate_methylation_frequency_remove_duplicates(methylationdf):
-	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')# methylationlocation
+	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')
 	methylationsort = methylationdf.sort_values(by=['methylationcount','tissue','group'],ascending=True)
-	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')#methylationlocation,cytosine,,['methylationfrequency','tissue','group'],
+	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')#methylationlocation,cytosine
 	return methylationdup
 
 # Make the color where hue is determined
@@ -480,6 +478,10 @@ def hue_by_group_color(df):
 	methlationdf = df.dropna(axis=0)
 	methlationdf['barcolor'] = np.where(methlationdf['group'] == 'element','Element','Random')
 	return methlationdf
+
+def get_percentage_cpg_methylated(methylationdf):
+	methylationdf['percentcpgmethylated'] = methylationdf
+	return methylationdf
 
 # Make graphs for fangs
 def graph_boundary_methylation(upstream,downstream,fileName):
@@ -496,9 +498,9 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	upstreamcalc = calculate_methylation_frequency_remove_duplicates(upstreamhue)
 	downstreamcalc = calculate_methylation_frequency_remove_duplicates(downstreamhue) 
 	
-	firsttissue = upstreamcalc.iloc[0]['tissue']
-	firsttissueup = (upstreamcalc[upstreamcalc['tissue']==firsttissue])
-	firsttissuedown = (downstreamcalc[downstreamcalc['tissue']==firsttissue])
+# 	firsttissue = upstreamcalc.iloc[0]['tissue']
+# 	firsttissueup = (upstreamcalc[upstreamcalc['tissue']==firsttissue])
+# 	firsttissuedown = (downstreamcalc[downstreamcalc['tissue']==firsttissue])
 	
 	surroundingfang = periphery*2
 
@@ -507,13 +509,13 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs.update(hspace=.8)
 		frames = [upstreamhue,downstreamhue]
 		catstreams = pd.concat(frames)
-		tissueframes = [firsttissueup,firsttissuedown]
-		cattissues = pd.concat(tissueframes)
+		catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
 		ax0 = plt.subplot(gs[0,:])
-		# needs work to make sure summing is correct - basically do groupby after concat
-		sns.barplot(data=catstreams,x='tissue',y='methylationcountcombineboundary',hue='barcolor',ax=ax0)#percentageunmethylatedcpgcombineboundary
+		sns.barplot(data=catstreams,x='tissue',y='methylationfrequencyboundaries',hue='barcolor',ax=ax0) #percentageunmethylatedcpgcombineboundary
 		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
 		ax0.set_ylabel('Fraction',size=8)
+# 		tissueframes = [firsttissueup,firsttissuedown]
+# 		cattissues = pd.concat(tissueframes)
 # 		for p in ax0.patches:
 # 			ax0.annotate(str(p.get_height()), (p.get_x(), p.get_height()))
 # 		ax1 = plt.subplot(gs[1,0])
@@ -531,7 +533,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 		gs.update(hspace=.8)
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=upstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax0)#percentageunmethylatedcpg
+		sns.barplot(data=upstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax0) #percentageunmethylatedcpg
 		ax0.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
 		ax0.set_ylabel('Fraction',size=8)
 # 		ax1 = plt.subplot(gs[0,1])
@@ -545,7 +547,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 # 		ax1.legend_.remove()
 # 		ax2.legend_.remove()
 		ax3 = plt.subplot(gs[1,:])
-		sns.barplot(data=downstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax3)#percentageunmethylatedcpg
+		sns.barplot(data=downstreamcalc,x='tissue',y='methylationfrequency',hue='barcolor',ax=ax3) #percentageunmethylatedcpg
 		ax3.set_title('Fraction CpGs Methylated Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
 		ax3.set_ylabel('Fraction',size=8)
 # 		ax4 = plt.subplot(gs[1,1])
