@@ -210,6 +210,14 @@ def get_just_fasta_sequence_for_feature(inFeature):
 	outSequence = outSequence.reset_index(drop=True)
 	return outSequence
 
+# Get the percentage AT in the element
+def percentage_at_for_element(region,group):
+	collectAT = []
+	for r in region:
+		collectAT.append(eval('100*float(r.count("G") + r.count("C"))/len(r)'))
+	pdAT = pd.DataFrame(collectAT)
+	print 'mean cg content for {0} elements in {1} is {2} %'.format(len(region.index),group,pdAT.mean())
+
 # get coordinates with flanking regions
 def collect_element_coordinates(fileName):
 	btFeatures = get_bedtools_features(fileName)
@@ -463,8 +471,8 @@ def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
 # If want to calculate frequency - might still need to remove duplicates
 def calculate_methylation_frequency_remove_duplicates(methylationdf):
 	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')
-	methylationsort = methylationdf.sort_values(by=['methylationcount','tissue','group'],ascending=True)
-	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')#methylationlocation,cytosine
+	methylationsort = methylationdf.sort_values(by=['group','tissue','methylationcount'],ascending=True)
+	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')
 	return methylationdup
 
 # Make the color where hue is determined
@@ -509,9 +517,10 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		catstreams = pd.concat(frames)
 		catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
 		catstreams['percentcpgmethylatedboundaries'] = catstreams['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
+		sortstreams = catstreams.sort_values(by=['group','tissue','methylationcount'],ascending=True)
 		
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=catstreams,x='tissue',y='percentcpgmethylatedboundaries',hue='barcolor',ax=ax0) #percentageunmethylatedcpgcombineboundary
+		sns.barplot(data=sortstreams,x='tissue',y='percentcpgmethylatedboundaries',hue='barcolor',ax=ax0)
 		ax0.set_title('Percent CpGs Methylated Across {0}bp Surrounding Fang'.format(surroundingfang),size=8)
 		ax0.set_ylabel('%',size=8)
 # 		tissueframes = [firsttissueup,firsttissuedown]
@@ -533,7 +542,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 		gs.update(hspace=.8)
 		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=upstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax0) #percentageunmethylatedcpg
+		sns.barplot(data=upstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax0)
 		ax0.set_title('Percent CpGs Methylated Across {0}bp Surrounding Upstream Fang'.format(surroundingfang),size=8)
 		ax0.set_ylabel('%',size=8)
 # 		ax1 = plt.subplot(gs[0,1])
@@ -547,7 +556,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 # 		ax1.legend_.remove()
 # 		ax2.legend_.remove()
 		ax3 = plt.subplot(gs[1,:])
-		sns.barplot(data=downstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax3) #percentageunmethylatedcpg
+		sns.barplot(data=downstreamcalc,x='tissue',y='percentcpgmethylated',hue='barcolor',ax=ax3)
 		ax3.set_title('Percent CpGs Methylated Across {0}bp Surrounding Downstream Fang'.format(surroundingfang),size=8)
 		ax3.set_ylabel('%',size=8)
 # 		ax4 = plt.subplot(gs[1,1])
@@ -588,13 +597,17 @@ def main():
 	rangeFeatures = collect_element_coordinates(eFiles)
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
 	
+	# Print out the CG content for the boundaries
+	percentage_at_for_element(rangeFeatures['upstreamsequence'],'{0}_{1}'.format(eFiles,'upstream'))
+	percentage_at_for_element(rangeFeatures['downstreamsequence'],'{0}_{1}'.format(eFiles,'downstream'))
+	
 	# Get the probability for each directional assignment, and use to randomly assign the correct number of random directions
 	dirOptions = ['-','+','=']
 	probOptions = make_probabilites_for_direction(directionFeatures,'directionality')
 
+	# Make empty lists into which to append out data
 	collectupstream,collectdownstream = [],[]
 	collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
-	
 	numbertissues = []
 	numbertissues.append(len(mFiles))
 	numbertissues.append('numtissues')
