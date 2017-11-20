@@ -508,7 +508,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		frames = [upstreamcalc,downstreamcalc]
 		catstreams = pd.concat(frames)
 		catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
-		catstream['percentcpgmethylatedboundaries'] = catstream['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
+		catstreams['percentcpgmethylatedboundaries'] = catstreams['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
 		
 		ax0 = plt.subplot(gs[0,:])
 		sns.barplot(data=catstreams,x='tissue',y='percentcpgmethylatedboundaries',hue='barcolor',ax=ax0) #percentageunmethylatedcpgcombineboundary
