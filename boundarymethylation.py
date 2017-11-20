@@ -471,11 +471,8 @@ def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
 # If want to calculate frequency - might still need to remove duplicates
 def calculate_methylation_frequency_remove_duplicates(methylationdf):
 	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')# methylationlocation
-	print methylationdf
-# 	methylationsort = methylationdf.sort_values(['methylationcount'],ascending=True)
-# 	print methylationsort
-	methylationdup = methylationdf.drop_duplicates(keep='last',inplace=True)#methylationlocation,cytosine,,['methylationfrequency','tissue','group'],
-	print methylationdup
+	methylationsort = methylationdf.sort_values(by=['methylationcount','tissue','group'],ascending=True)
+	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')#methylationlocation,cytosine,,['methylationfrequency','tissue','group'],
 	return methylationdup
 
 # Make the color where hue is determined
