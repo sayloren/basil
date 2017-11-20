@@ -212,11 +212,15 @@ def get_just_fasta_sequence_for_feature(inFeature):
 
 # Get the percentage AT in the element
 def percentage_at_for_element(region,group):
-	collectAT = []
-	for r in region:
-		collectAT.append(eval('100*float(r.count("G") + r.count("C"))/len(r)'))
-	pdAT = pd.DataFrame(collectAT)
-	print 'mean cg content for {0} elements in {1} is {2} %'.format(len(region.index),group,pdAT.mean())
+	collectup = []
+	for r in region['upstreamsequence']:
+		collectup.append(eval('100*float(r.count("G") + r.count("C"))/len(r)'))
+	pdup = pd.DataFrame(collectup)
+	collectdown = []
+	for r in region['downstreamsequence']:
+		collectdown.append(eval('100*float(r.count("G") + r.count("C"))/len(r)'))
+	pddown = pd.DataFrame(collectdown)
+	print 'mean cg content for {0} elements in {1} is: upstream - {2} %, downtream - {3} %'.format(len(region.index),group,pdup.mean(),pddown.mean())
 
 # get coordinates with flanking regions
 def collect_element_coordinates(fileName):
@@ -469,21 +473,22 @@ def separate_dataframe_by_group(List,directionFeatures,typecolumn,fileName):
 	return bool,upstream,downstream
 
 # If want to calculate frequency - might still need to remove duplicates
-def calculate_methylation_frequency_remove_duplicates(methylationdf):
+def calculate_graph_value(methylationdf):
+	methylationdf['barcolor'] = np.where(methylationdf['group'] == 'element','Element','Random')
 	methylationdf['methylationfrequency'] = methylationdf.groupby(['methylationcount','tissue','group'])['methylationcount'].transform('count')
 	methylationsort = methylationdf.sort_values(by=['group','tissue','methylationcount'],ascending=True)
 	methylationdup = methylationsort.drop_duplicates(['methylationfrequency','tissue','group'],keep='last')
-	return methylationdup
+	methylationna = methylationdup.fillna(value=0)
+	methylationna['percentcpgmethylated'] = methylationna['methylationfrequency']/methylationna['cpgsequencecountsum']*100
+	return methylationna
 
-# Make the color where hue is determined
-def hue_by_group_color(df):
-	methlationdf = df.dropna(axis=0)
-	methlationdf['barcolor'] = np.where(methlationdf['group'] == 'element','Element','Random')
-	return methlationdf
-
-def get_percentage_cpg_methylated(methylationdf):
-	methylationdf['percentcpgmethylated'] = methylationdf['methylationfrequency']/methylationdf['cpgsequencecountsum']*100
-	return methylationdf
+def calculate_graph_value_both_boundaries(upstreamcalc,downstreamcalc):
+	frames = [upstreamcalc,downstreamcalc]
+	catstreams = pd.concat(frames)
+	catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
+	catstreams['percentcpgmethylatedboundaries'] = catstreams['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
+	sortstreams = catstreams.sort_values(by=['group','tissue','methylationcount'],ascending=True)
+	return sortstreams
 
 # Make graphs for fangs
 def graph_boundary_methylation(upstream,downstream,fileName):
@@ -494,14 +499,8 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	plt.suptitle(info,fontsize=10)
 	sns.set_palette("husl",n_colors=2)
 	
-	upstreamhue = hue_by_group_color(upstream)
-	downstreamhue = hue_by_group_color(downstream)
-	
-	upstreamfreq = calculate_methylation_frequency_remove_duplicates(upstreamhue)
-	downstreamfreq = calculate_methylation_frequency_remove_duplicates(downstreamhue) 
-	
-	upstreamcalc = get_percentage_cpg_methylated(upstreamfreq)
-	downstreamcalc = get_percentage_cpg_methylated(downstreamfreq)
+	upstreamcalc = calculate_graph_value(upstream)
+	downstreamcalc = calculate_graph_value(downstream) 
 	
 # 	firsttissue = upstreamcalc.iloc[0]['tissue']
 # 	firsttissueup = (upstreamcalc[upstreamcalc['tissue']==firsttissue])
@@ -513,11 +512,7 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 		gs = gridspec.GridSpec(1,1,height_ratios=[1])
 		gs.update(hspace=.8)
 		
-		frames = [upstreamcalc,downstreamcalc]
-		catstreams = pd.concat(frames)
-		catstreams['methylationfrequencyboundaries'] = catstreams.groupby(['tissue','group'])['methylationfrequency'].transform('sum')
-		catstreams['percentcpgmethylatedboundaries'] = catstreams['methylationfrequencyboundaries']/['cpgsequencecountsumcombineboundary']*100
-		sortstreams = catstreams.sort_values(by=['group','tissue','methylationcount'],ascending=True)
+		sortstreams = calculate_graph_value_both_boundaries(upstreamcalc,downstreamcalc)
 		
 		ax0 = plt.subplot(gs[0,:])
 		sns.barplot(data=sortstreams,x='tissue',y='percentcpgmethylatedboundaries',hue='barcolor',ax=ax0)
@@ -575,11 +570,11 @@ def graph_boundary_methylation(upstream,downstream,fileName):
 	pp.close()
 
 # Get the empirical probability for each direction classification
-def make_probabilites_for_direction(directionFeatures,probabilitycolumn):
+def make_probabilites_for_direction(directionFeatures):
 	lenAll = float(len(directionFeatures.index))
-	numPlus = (directionFeatures[probabilitycolumn] == '+').sum()/lenAll
-	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()/lenAll
-	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()/lenAll
+	numPlus = (directionFeatures['directionality'] == '+').sum()/lenAll
+	numMinus = (directionFeatures['directionality'] == '-').sum()/lenAll
+	numEqual = (directionFeatures['directionality'] == '=').sum()/lenAll
 	probOptions = [numMinus,numPlus,numEqual]
 	print 'made probabilities for df: {0} for +, {1} for - and {2} for ='.format(numPlus,numMinus,numEqual)
 	return probOptions
@@ -598,12 +593,11 @@ def main():
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
 	
 	# Print out the CG content for the boundaries
-	percentage_at_for_element(rangeFeatures['upstreamsequence'],'{0}_{1}'.format(eFiles,'upstream'))
-	percentage_at_for_element(rangeFeatures['downstreamsequence'],'{0}_{1}'.format(eFiles,'downstream'))
+	percentage_at_for_element(rangeFeatures,eFiles)
 	
 	# Get the probability for each directional assignment, and use to randomly assign the correct number of random directions
 	dirOptions = ['-','+','=']
-	probOptions = make_probabilites_for_direction(directionFeatures,'directionality')
+	probOptions = make_probabilites_for_direction(directionFeatures)
 
 	# Make empty lists into which to append out data
 	collectupstream,collectdownstream = [],[]
@@ -613,20 +607,20 @@ def main():
 	numbertissues.append('numtissues')
 	
 	if labelcolumn:
-		lenthrandom =[]
 		typeList = directionFeatures['type'].unique()
 		for type in typeList:
+			lengthrandom =[]
 			typecollectupstream,typecollectdownstream = [],[]
 			typecollectreversecomplementupstream,typecollectreversecomplementdownstream = [],[]
 			typeBool,typeupstreammethylation,typedownstreammethylation = separate_dataframe_by_group(type,rangeFeatures,'type',eFiles)
+			# Print out the GC content for the boundaries by type
+			percentage_at_for_element(typeBool,'{0}_{1}'.format(eFiles,type))
+			
 			typeupstreammethylation['group'] = 'element'
 			typedownstreammethylation['group'] = 'element'
 			typecollectupstream.append(typeupstreammethylation)
 			typecollectdownstream.append(typedownstreammethylation)
-			if directionalitycolumn:
-				probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
-			else:
-				probOptionstype = make_probabilites_for_direction(typeBool,'compareBoundaries')
+			probOptionstype = make_probabilites_for_direction(typeBool)
 			if reverseComplement:
 				if directionalitycolumn:
 					revtypeupstreammethylation,revtypedownstreammethylation = sort_elements_by_directionality(typeBool,'directionality')
@@ -635,7 +629,7 @@ def main():
 					typecollectreversecomplementupstream.append(revtypeupstreammethylation)
 					typecollectreversecomplementdownstream.append(revtypedownstreammethylation)
 				else:
-					revtypeupstreammethylation,revtypedownstreammethylation = sort_elements_by_directionality(typeBool,'compareBoundaries')
+					revtypeupstreammethylation,revtypedownstreammethylation = sort_elements_by_directionality(typeBool,'directionality')
 					revtypeupstreammethylation['group'] = 'element'
 					revtypedownstreammethylation['group'] = 'element'
 					typecollectreversecomplementupstream.append(revtypeupstreammethylation)
@@ -645,27 +639,26 @@ def main():
 				lengthrandom.append('randomfiles')
 				for randomFile in rFiles:
 					randomFeatures = collect_element_coordinates(randomFile)
-					randirFeatures= evaluate_boundaries_size_n(randomFeatures,randomFile)
+					randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
 					rantypeBool,randomtypeupstreammethylation,randomtypedownstreammethylation = separate_dataframe_by_group(type,randirFeatures,'type',randomFile)
 					randomtypeupstreammethylation['group'] = 'random{0}'.format(randomFile)
 					randomtypedownstreammethylation['group'] = 'random{0}'.format(randomFile)
 					typecollectupstream.append(randomtypeupstreammethylation)
 					typecollectdownstream.append(randomtypedownstreammethylation)
 					if reverseComplement:
-						randomrevtypeupstreammethylation,randomrevtypedownstreammethylation = sort_elements_by_directionality(rantypeBool,'compareBoundaries')
+						randomrevtypeupstreammethylation,randomrevtypedownstreammethylation = sort_elements_by_directionality(rantypeBool,'directionality')
 						randomrevtypeupstreammethylation['group'] = 'random{0}'.format(i)
 						randomrevtypedownstreammethylation['group'] = 'random{0}'.format(i)
 						typecollectreversecomplementupstream.append(randomrevtypeupstreammethylation)
 						typecollectreversecomplementdownstream.append(randomrevtypedownstreammethylation)
 			else:
-				lengthrandom =[]
 				lengthrandom.append(randomassignments)
 				lengthrandom.append('randomassingments')
 				for i in range(randomassignments):
 					typeBool['randomDirectiontype'] = np.random.choice(dirOptions,len(typeBool.index),p=probOptionstype)
 					typedirupstreammethylation,typedirdownstreammethylation = sort_elements_by_directionality(typeBool,'randomDirectiontype')
-					typedirupstreammethylation['group'] = 'element'
-					typedirdownstreammethylation['group'] = 'element'
+					typedirupstreammethylation['group'] = 'random{0}'.format(i)
+					typedirdownstreammethylation['group'] = 'random{0}'.format(i)
 					typecollectreversecomplementupstream.append(typedirupstreammethylation)
 					typecollectreversecomplementdownstream.append(typedirdownstreammethylation)
 			typeconcatupstream = pd.concat(typecollectupstream)
