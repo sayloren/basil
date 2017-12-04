@@ -441,6 +441,17 @@ def collect_methylation_data_by_element(rangeFeatures):
 	downstreamconcat = pd.concat(downstreamcapture)
 	return upstreamconcat,downstreamconcat
 
+# Make temp df to recalculate cpg content
+def make_temp_df_for_cg_calculations(posStr,negStr):
+	posSeq = posStr[['chr','start','end','upstreamsequence','downstreamsequence']]
+	negSeq = negStr[['chr','start','end','upstreamsequence','downstreamsequence']]
+	negSeq['newupstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['upstreamsequence']),axis=1)
+	negSeq['newdownstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['downstreamsequence']),axis=1)
+	newnegSeq = negSeq[['chr','start','end','newupstreamsequence','newdownstreamsequence']]
+	newnegSeq.columns = ['chr','start','end','upstreamsequence','downstreamsequence']
+	catStr = pd.concat([posSeq,newnegSeq],axis=0,ignore_index=True)
+	return catStr
+
 # Methylation rcsorting
 def sort_methylation_by_directionality(negStr,posStr):
 	posmethylationupstream,posmethylationdownstream = collect_methylation_data_by_element(posStr)
@@ -449,13 +460,7 @@ def sort_methylation_by_directionality(negStr,posStr):
 	newnegmethylationdownstream = negative_directionality_corrected_features(negmethylationdownstream)
 	sortedmethylationupstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationupstream,newnegmethylationupstream)
 	sortedmethylationdownstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationdownstream,newnegmethylationdownstream)
-	posSeq = posStr[['chr','start','end','upstreamsequence','downstreamsequence']]
-	negSeq = negStr[['chr','start','end','upstreamsequence','downstreamsequence']]
-	negSeq['newupstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['upstreamsequence']),axis=1)
-	negSeq['newdownstreamsequence'] = negSeq.apply(lambda row: reverse_complement_dictionary(row['downstreamsequence']),axis=1)
-	newnegSeq = negSeq[['chr','start','end','newupstreamsequence','newdownstreamsequence']]
-	newnegSeq.columns = ['chr','start','end','upstreamsequence','downstreamsequence']
-	catStr = pd.concat([posSeq,newnegSeq],axis=0,ignore_index=True)
+	catStr = make_temp_df_for_cg_calculations(posStr,negStr)
 	sortedmethylationupstream,sortedmethylationdownstream = columns_for_nucleotide_and_methylation_content(catStr,sortedmethylationupstream,sortedmethylationdownstream)
 	return sortedmethylationupstream,sortedmethylationdownstream
 
@@ -659,6 +664,8 @@ def main():
 					typedirupstreammethylation,typedirdownstreammethylation = sort_elements_by_directionality(typeBool,'randomDirectiontype')
 					typedirupstreammethylation['group'] = 'random{0}'.format(i)
 					typedirdownstreammethylation['group'] = 'random{0}'.format(i)
+					typecollectupstream.append(typedirupstreammethylation)
+					typecollectdownstream.append(typedirdownstreammethylation)
 					typecollectreversecomplementupstream.append(typedirupstreammethylation)
 					typecollectreversecomplementdownstream.append(typedirdownstreammethylation)
 			typeconcatupstream = pd.concat(typecollectupstream)
