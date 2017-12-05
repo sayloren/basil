@@ -298,7 +298,7 @@ def concat_positive_and_negative_directionality_and_get_frequency(posmethylation
 	# Concat pos and revised neg meth dfs
 	frames = [posmethylation,newnegmethylation]
 	methlationconcat = pd.concat(frames)
-	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','tissue','cpgsequencecountsum','cpgsequencecountsumcombineboundary']]
+	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']]
 	submethylation['methylationgroup'] = submethylation.groupby(['tissue','id','methylationlocation'])['tissue'].transform('count')
 	submethylation['methylationcount'] = submethylation.groupby(['methylationgroup','tissue'])['methylationgroup'].transform('sum')
 	dropmethylation = submethylation.drop(['methylationgroup'])
@@ -314,8 +314,8 @@ def negative_directionality_corrected_features(negmethylation):
 	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
 	negmethylation['newmethylationlocation'] = negmethylation.methylationlocation.map(rangeDict)
 	negmethylation['newcytosine'] = negmethylation.cytosine.map(seqDict)
-	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','tissue']]
-	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','tissue']
+	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']]
+	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']
 	return newnegmethylation
 
 # Calculate sums for cpg and cg
