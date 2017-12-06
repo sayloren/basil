@@ -723,7 +723,9 @@ def main():
 			lengthrandom.append(randomassignments)
 			lengthrandom.append('randomassingments')
 			for i in range(randomassignments):
-				directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
+				dirOptionsra = ['-','+']
+				probOptionsra = [0.5,0.5]
+				directionFeatures['randomDirection'] = np.random.choice(dirOptionsra,len(directionFeatures.index),p=probOptionsra)
 				randirrevmethylationupstream,randirrevmethylationdownstream = sort_elements_by_directionality(directionFeatures,'randomDirection')
 				randirrevmethylationupstream['group'] = 'random{0}'.format(i)
 				randirrevmethylationdownstream['group'] = 'random{0}'.format(i)
