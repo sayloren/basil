@@ -298,7 +298,7 @@ def concat_positive_and_negative_directionality_and_get_frequency(posmethylation
 	# Concat pos and revised neg meth dfs
 	frames = [posmethylation,newnegmethylation]
 	methlationconcat = pd.concat(frames)
-	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']]
+	submethylation = methlationconcat[['chr','id','methylationlocation','methylationpercentage','cytosine','tissue']]#,'cpgsequencecountsum','cpgsequencecountsumcombineboundary'
 	submethylation['methylationgroup'] = submethylation.groupby(['tissue','id','methylationlocation'])['tissue'].transform('count')
 	submethylation['methylationcount'] = submethylation.groupby(['methylationgroup','tissue'])['methylationgroup'].transform('sum')
 	dropmethylation = submethylation.drop(['methylationgroup'])
@@ -314,8 +314,8 @@ def negative_directionality_corrected_features(negmethylation):
 	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
 	negmethylation['newmethylationlocation'] = negmethylation.methylationlocation.map(rangeDict)
 	negmethylation['newcytosine'] = negmethylation.cytosine.map(seqDict)
-	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']]
-	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','cpgsequencecountsum','cpgsequencecountsumcombineboundary','tissue']
+	newnegmethylation = negmethylation[['chr','id','newmethylationlocation','methylationpercentage','newcytosine','tissue']]#,'cpgsequencecountsum','cpgsequencecountsumcombineboundary'
+	newnegmethylation.columns = ['chr','id','methylationlocation','methylationpercentage','cytosine','tissue']#,'cpgsequencecountsum','cpgsequencecountsumcombineboundary'
 	return newnegmethylation
 
 # Calculate sums for cpg and cg
@@ -462,8 +462,8 @@ def sort_methylation_by_directionality(negStr,posStr):
 	newnegmethylationdownstream = negative_directionality_corrected_features(negmethylationdownstream)
 	sortedmethylationupstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationupstream,newnegmethylationupstream)
 	sortedmethylationdownstream = concat_positive_and_negative_directionality_and_get_frequency(posmethylationdownstream,newnegmethylationdownstream)
-# 	catStr = make_temp_df_for_cg_calculations(posStr,negStr)
-# 	sortedmethylationupstream,sortedmethylationdownstream = columns_for_nucleotide_and_methylation_content(catStr,sortedmethylationupstream,sortedmethylationdownstream)
+	catStr = make_temp_df_for_cg_calculations(posStr,negStr)
+	sortedmethylationupstream,sortedmethylationdownstream = columns_for_nucleotide_and_methylation_content(catStr,sortedmethylationupstream,sortedmethylationdownstream)
 	return sortedmethylationupstream,sortedmethylationdownstream
 
 # Separate on plus and minus orientation, rcsort and return methylation
@@ -607,8 +607,6 @@ def main():
 	probOptions = make_probabilites_for_direction(directionFeatures)
 
 	# Make empty lists into which to append out data
-	collectupstream,collectdownstream = [],[]
-	collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
 	numbertissues = []
 	numbertissues.append(len(mFiles))
 	numbertissues.append('numtissues')
@@ -621,6 +619,7 @@ def main():
 			typecollectupstream,typecollectdownstream = [],[]
 			typecollectreversecomplementupstream,typecollectreversecomplementdownstream = [],[]
 			typeBool,typeupstreammethylation,typedownstreammethylation = separate_dataframe_by_group(type,rangeFeatures,'type',eFiles)
+			print 'number elements used is', len(typeBool)
 			# Print out the GC content for the boundaries by type
 			percentage_at_for_element(typeBool,'{0}_{1}'.format(eFiles,type))
 			
@@ -662,7 +661,9 @@ def main():
 				lengthrandom.append(randomassignments)
 				lengthrandom.append('randomassingments')
 				for i in range(randomassignments):
-					typeBool['randomDirection'] = np.random.choice(dirOptions,len(typeBool.index),p=probOptions)
+					dirOptionstype = ['-','+']
+					probOptionstype = [0.5,0.5]
+					typeBool['randomDirection'] = np.random.choice(dirOptionstype,len(typeBool.index),p=probOptionstype)
 					typedirupstreammethylation,typedirdownstreammethylation = sort_elements_by_directionality(typeBool,'randomDirection')
 					typedirupstreammethylation['group'] = 'random{0}'.format(i)
 					typedirdownstreammethylation['group'] = 'random{0}'.format(i)
@@ -681,6 +682,8 @@ def main():
 
 	else:
 		lengthrandom =[]
+		collectupstream,collectdownstream = [],[]
+		collectreversecomplementupstream,collectreversecomplementdownstream = [],[]
 		allmethylationupstream,allmethylationdownstream = collect_methylation_data_by_element(rangeFeatures)
 		allmethylationupstream['group'] = 'element'
 		allmethylationdownstream['group'] = 'element'
