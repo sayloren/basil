@@ -4,6 +4,8 @@ Script to run mean AT conent slope analysis
 Wren Saylor
 October 2017
 
+Other: Analog and discrete signals, Fourier series, Spectral analysis, Fourier transform, Discrete Fourier Transform, Nyquist-Shannon sampling theorem, aliasing
+
 Copyright 2017 Harvard University, Wu Lab
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +40,7 @@ from scipy.interpolate import splrep, splev
 import scipy.stats as ss
 from scipy.stats import mstats
 import time
+
 
 # set command line arguments
 def get_args():
@@ -373,6 +376,18 @@ def collect_sum_two_nucleotides(dfWindow,names,nuc1,nuc2):
 	print 'summed a and t for graph'
 	return ATgroup, ATmean, ATstd
 
+# Get smoothed mean, first and second derivatives
+def collect_smoothed_lines(ATmean):
+	f = splrep(fillX,ATmean,k=5,s=11)
+	smoothMean = splev(fillX,f)
+	firstDer = splev(fillX,f,der=1)
+	firstDer[0:halfwindow] = 0 # small edge effect
+	firstDer[-halfwindow:] = 0 # small edge effect
+	secondDer = splev(fillX,f,der=2)
+	secondDer[0:window] = 0 # small edge effect
+	secondDer[-window:] = 0 # small edge effect
+	return smoothMean,firstDer,secondDer
+
 # save panda
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
@@ -381,14 +396,16 @@ def save_panda(pdData, strFilename):
 def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,collectRandom,collectRandomRC,denseRandom,denseRandomRC):
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
+	smoothMean,firstDer,secondDer = collect_smoothed_lines(ATmean)
 	revATgroup,revATmean,revATstd = collect_sum_two_nucleotides(revWindow,names,'A','T')
+	revsmoothMean,revfirstDer,revsecondDer = collect_smoothed_lines(revATmean)
 	totalnumberelements = str(len(ATgroup.index))
 	totalnumberelementsrc = str(len(revATgroup.index))
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
-	gs = gridspec.GridSpec(2,2,height_ratios=[3,1])
+	gs = gridspec.GridSpec(2,2,height_ratios=[1,1])
 	gs.update(hspace=.8)
-	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
+	pp = PdfPages('Slope_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	sns.set_palette("husl",n_colors=8)
@@ -423,10 +440,9 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
 		for dfNuc in collectRandom:
 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
+			ransmoothMean,ranfirstDer,ransecondDer = collect_smoothed_lines(ranATmean)
 			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
-		for dfNuc in collectRandom:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
-			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
+			ax1.plot(fillX,ranfirstDer,linewidth=1,alpha=0.1)
 
 	ax0.plot(fillX,ATmean,linewidth=2,label='AT element',color='#924d6a')
 	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
@@ -441,15 +457,15 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
 
-	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
+	ax1.plot(fillX,firstDer,linewidth=2,label='AT element',color='#924d6a')
 	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax1.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax1.set_yticks(ax1.get_yticks()[::2])
 	ax1.set_xlabel('Position',size=16)
-	ax1.set_ylabel('SD',size=16)
-	ax1.set_title('Standard Deviation',size=16)
+	ax1.set_ylabel('% AT Content',size=16)
+	ax1.set_title('First Derivative',size=16)
 	plt.setp(ax1.get_xticklabels(), visible=True)
 	
 	sns.set_palette("husl",n_colors=8)
@@ -459,10 +475,9 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	if any([rFiles,randomassignments]):
 		for rcNuc in collectRandomRC:
 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(rcNuc,names,'A','T')
+			ransmoothMean,ranfirstDer,ransecondDer = collect_smoothed_lines(ranATmean)
 			ax2.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
-		for rcNuc in collectRandomRC:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(rcNuc,names,'A','T')
-			ax3.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
+			ax3.plot(fillX,ranfirstDer,linewidth=1,alpha=0.1)
 	ax2.plot(fillX,revATmean,linewidth=2,label='AT element',color='#924d6a')
 	ax2.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax2.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
@@ -476,16 +491,16 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	ax2.set_yticks(ax2.get_yticks()[::2])
 	plt.xlim(0,num)
 
-	ax3.plot(fillX,revATstd,linewidth=2,label='AT element',color='#924d6a')
+	ax3.plot(fillX,revfirstDer,linewidth=2,label='AT element',color='#924d6a')
 	ax3.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax3.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax3.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax3.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax3.set_yticks(ax3.get_yticks()[::2])
 	ax3.set_xlabel('Position',size=16)
-	ax3.set_ylabel('SD',size=16)
-	ax3.set_title('Standard Deviation',size=16)
-	plt.setp(ax1.get_xticklabels(), visible=True)
+	ax3.set_ylabel('% AT Content',size=16)
+	ax3.set_title('First Derivative',size=16)
+	plt.setp(ax3.get_xticklabels(), visible=True)
 
 	ax0.tick_params(axis='both',which='major',labelsize=16)
 	ax1.tick_params(axis='both',which='major',labelsize=16)
@@ -500,12 +515,14 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
+	smoothMean,firstDer,secondDer = collect_smoothed_lines(ATmean)
+
 	totalnumberelements = str(len(ATgroup.index))
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
-	gs = gridspec.GridSpec(2,1,height_ratios=[3,1])
+	gs = gridspec.GridSpec(2,1,height_ratios=[1,1])
 	gs.update(hspace=.8)
-	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
+	pp = PdfPages('Slope_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 	sns.set_palette("husl",n_colors=8)
@@ -514,6 +531,7 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
 	if any([rFiles,randomassignments]):
 		ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(denseRandom,names,'A','T')
+		ransmoothMean,ranfirstDer,ransecondDer = collect_smoothed_lines(ranATmean)
 	# Stats
 		# regions
 		elementmean = ATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].mean()
@@ -532,7 +550,7 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 		for dfNuc in Random:
 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
 			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.3)
-			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
+			ax1.plot(fillX,ranfirstDer,linewidth=1,alpha=0.3)
 	ax0.plot(fillX,ATmean,linewidth=2,label='AT element',color='#924d6a')
 	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
@@ -540,18 +558,20 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
+	ax0.set_title('Mean AT Content, {0} elements'.format(totalnumberelements),size=16)
 	ax0.set_yticks(ax0.get_yticks()[::2])
 	plt.xlim(0,num)
-	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
+
+
+	ax1.plot(fillX,firstDer,linewidth=2,label='AT element',color='#924d6a')
 	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
 	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax1.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
 	ax1.set_yticks(ax1.get_yticks()[::2])
 	ax1.set_xlabel('Position',size=16)
-	ax1.set_ylabel('SD',size=16)
-	ax1.set_title('Standard Deviation',size=16)
+	ax1.set_ylabel('% AT Content',size=16)
+	ax1.set_title('First Derivative',size=16)
 	plt.setp(ax1.get_xticklabels(),visible=True)
 
 	ax0.tick_params(axis='both',which='major',labelsize=16)
