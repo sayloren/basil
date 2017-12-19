@@ -70,6 +70,7 @@ def get_args():
 
 	# plot filename addition
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
+	parser.add_argument('-l',"--plotlinesize",type=int,default=1,help="size of the line to plot")
 
 	# directionality parameters
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
@@ -134,7 +135,10 @@ def set_global_variables(args):
 	reverseComplement = args.reversecomplement
 	randomassignments = args.numberrandomassignments
 	motifdirectionality = args.motifdirectionality
-	
+
+	global plotlinesize
+	plotlinesize = args.plotlinesize
+
 	print 'collected global parameters'
 
 def set_ploting_parameters():
@@ -151,7 +155,7 @@ def set_ploting_parameters():
 	global centerelementpoint
 	centerelementpoint = ((num-uce)/2)+(uce/2)-halfwindow
 	print 'center point', centerelementpoint
-
+	
 	print 'set plotting parameters'
 
 # get bt features
@@ -397,11 +401,12 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
-	sns.set_palette("husl",n_colors=8)
 
 	ax0 = plt.subplot(gs[0,0])
 	ax1 = plt.subplot(gs[1,0],sharex=ax0)
-	
+	ax2 = plt.subplot(gs[0,1])
+	ax3 = plt.subplot(gs[1,1],sharex=ax0)
+
 	if any([rFiles,randomassignments]):
 		ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(denseRandom,names,'A','T')
 		revranATgroup,revranATmean,revranATstd = collect_sum_two_nucleotides(denseRandomRC,names,'A','T')
@@ -427,76 +432,51 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 			columns=['statistic','pvalue'],
 			index=['wsr-total','wsr-total-rc','wsr-element','wsr-element-rc','wsr-flanks','wsr-flanks-rc'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-		for dfNuc in collectRandom:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
-			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
-		for dfNuc in collectRandom:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
-			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
+		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax2.plot(fillX,revranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax3.plot(fillX,revranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
 
-	ax0.plot(fillX,ATmean,linewidth=2,label='AT element',color='#924d6a')
-	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-# 	ax0.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 	ax0.text(32,65,'11bp sliding window',size=6)
+		# If want to plot each line separately
+# 		for dfNuc in collectRandom:
+# 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
+# 			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
+# 			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
+# 		for rcNuc in collectRandomRC:
+# 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(rcNuc,names,'A','T')
+# 			ax2.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
+# 			ax3.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
+
+	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
-	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelements),size=14)
-	ax0.set_yticks(ax0.get_yticks()[::2])
+# 	ax0.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelements),size=14)
 	plt.xlim(0,num)
 
-	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
-	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.set_yticks(ax1.get_yticks()[::2])
-	ax1.set_xlabel('Position',size=16)
-	ax1.set_ylabel('SD',size=16)
-	ax1.set_title('Standard Deviation',size=16)
+	ax1.plot(fillX,ATstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax1.set_ylabel('Standard Deviation',size=16)
 	plt.setp(ax1.get_xticklabels(), visible=True)
-	
-	sns.set_palette("husl",n_colors=8)
-	ax2 = plt.subplot(gs[0,1])
-	ax3 = plt.subplot(gs[1,1],sharex=ax0)
 
-	if any([rFiles,randomassignments]):
-		for rcNuc in collectRandomRC:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(rcNuc,names,'A','T')
-			ax2.plot(fillX,ranATmean,linewidth=1,alpha=0.1)
-		for rcNuc in collectRandomRC:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(rcNuc,names,'A','T')
-			ax3.plot(fillX,ranATstd,linewidth=1,alpha=0.1)
-	ax2.plot(fillX,revATmean,linewidth=2,label='AT element',color='#924d6a')
-	ax2.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax2.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax2.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax2.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-# 	ax2.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 	ax2.text(32,65,'11bp sliding window',size=6)
+	ax2.plot(fillX,revATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax2.set_ylabel('% AT Content',size=16)
-	ax2.set_xlabel('Position',size=16)
-	ax2.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelementsrc),size=14)
-	ax2.set_yticks(ax2.get_yticks()[::2])
+# 	ax2.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelementsrc),size=14)
 	plt.xlim(0,num)
 
-	ax3.plot(fillX,revATstd,linewidth=2,label='AT element',color='#924d6a')
-	ax3.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax3.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax3.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax3.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax3.set_yticks(ax3.get_yticks()[::2])
-	ax3.set_xlabel('Position',size=16)
-	ax3.set_ylabel('SD',size=16)
-	ax3.set_title('Standard Deviation',size=16)
+	ax3.plot(fillX,revATstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax3.set_ylabel('Standard Deviation',size=16)
+# 	ax3.set_title('Standard Deviation',size=16)
 	plt.setp(ax3.get_xticklabels(), visible=True)
 
-	ax0.tick_params(axis='both',which='major',labelsize=16)
-	ax1.tick_params(axis='both',which='major',labelsize=16)
-	ax2.tick_params(axis='both',which='major',labelsize=16)
-	ax3.tick_params(axis='both',which='major',labelsize=16)
+	subplots = [ax0,ax1,ax2,ax3]
+	for plot in subplots:
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.set_yticks(plot.get_yticks()[::2])
+		plot.tick_params(axis='both',which='major',labelsize=16)
+		plot.set_xlabel('Position (bp)',size=16)
+# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+# 		plot.text(32,65,'11bp sliding window',size=6)
 
 	sns.despine()
 	pp.savefig()
@@ -514,7 +494,6 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-	sns.set_palette("husl",n_colors=8)
 
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
@@ -535,33 +514,32 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 			columns=['statistic','pvalue'],
 			index=['wsr-total','wsr-element','wsr-flanks'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-		for dfNuc in Random:
-			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
-			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.3)
-			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
-	ax0.plot(fillX,ATmean,linewidth=2,label='AT element',color='#924d6a')
-	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
+		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		# If want to plot each line seperately
+# 		for dfNuc in Random:
+# 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
+# 			ax0.plot(fillX,ranATmean,linewidth=1,alpha=0.3)
+# 			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
+	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
-	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
-	ax0.set_yticks(ax0.get_yticks()[::2])
+# 	ax0.set_title('Mean AT Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
-	ax1.plot(fillX,ATstd,linewidth=2,label='AT element',color='#924d6a')
-	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.set_yticks(ax1.get_yticks()[::2])
-	ax1.set_xlabel('Position',size=16)
-	ax1.set_ylabel('SD',size=16)
-	ax1.set_title('Standard Deviation',size=16)
+	ax1.plot(fillX,ATstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax1.set_ylabel('Standard Deviation',size=16)
 	plt.setp(ax1.get_xticklabels(),visible=True)
 
-	ax0.tick_params(axis='both',which='major',labelsize=16)
-	ax1.tick_params(axis='both',which='major',labelsize=16)
+	subplots = [ax0,ax1]
+	for plot in subplots:
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.set_yticks(plot.get_yticks()[::2])
+		plot.tick_params(axis='both',which='major',labelsize=16)
+		plot.set_xlabel('Position (bp)',size=16)
+# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+# 		plot.text(32,65,'11bp sliding window',size=6)
 
 	sns.despine()
 	pp.savefig()
@@ -580,7 +558,6 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-	sns.set_palette("husl",n_colors=8)
 
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
@@ -600,29 +577,27 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 			columns=['statistic','pvalue'],
 			index=['wsr-element','wsr-random'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-	ax0.plot(fillX,ATmean,linewidth=1,label='AT element',color='#737f87')
-	ax0.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax0.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax0.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
+	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
-	ax0.set_xlabel('Position',size=16)
-	ax0.set_title('Mean AT Content for UCEs, {0} elements'.format(totalnumberelements),size=16)
-	ax0.set_yticks(ax0.get_yticks()[::2])
+	ax0.set_xlabel('Position (bp)',size=16)
+# 	ax0.set_title('Mean AT Content for UCEs, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
-	ax1.plot(fillX,ranATmean,linewidth=1,label='AT random',color='#cc858c')
-	ax1.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#e7298a')
-	ax1.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#bd4973')
-	ax1.set_yticks(ax1.get_yticks()[::2])
-	ax1.set_xlabel('Position',size=16)
+	ax1.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
+	ax1.set_xlabel('Position (bp)',size=16)
 	ax1.set_ylabel('% AT Content',size=16)
-	ax1.set_title('Mean AT Content for {0} times Randomly Sorted UCEs'.format(randomassignments),size=16)
+# 	ax1.set_title('Mean AT Content for {0} times Randomly Sorted UCEs'.format(randomassignments),size=16)
 	plt.setp(ax1.get_xticklabels(),visible=True)
 
-	ax0.tick_params(axis='both',which='major',labelsize=16)
-	ax1.tick_params(axis='both',which='major',labelsize=16)
+	subplots = [ax0,ax1]
+	for plot in subplots:
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.set_yticks(plot.get_yticks()[::2])
+		plot.tick_params(axis='both',which='major',labelsize=16)
+# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+# 		plot.text(32,65,'11bp sliding window',size=6)
 
 	sns.despine()
 	pp.savefig()
