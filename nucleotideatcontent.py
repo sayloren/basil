@@ -449,6 +449,9 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 
 	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
+	ax0.hlines(y=62,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+	ax0.text(32,62,'{0}bp sliding window'.format(window),size=12)
+	ax0.legend()
 # 	ax0.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelements),size=14)
 	plt.xlim(0,num)
 
@@ -457,7 +460,10 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	plt.setp(ax1.get_xticklabels(), visible=True)
 
 	ax2.plot(fillX,revATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax2.hlines(y=62,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+	ax2.text(32,62,'{0}bp sliding window'.format(window),size=12)
 	ax2.set_ylabel('% AT Content',size=16)
+	ax2.legend()
 # 	ax2.set_title('Mean AT Content With Standard Deviation, {0} Elements'.format(totalnumberelementsrc),size=14)
 	plt.xlim(0,num)
 
@@ -475,8 +481,6 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
-# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 		plot.text(32,65,'11bp sliding window',size=6)
 
 	sns.despine()
 	pp.savefig()
@@ -495,8 +499,8 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:],sharex=ax0)
+	ax0 = plt.subplot(gs[0,0])
+	ax1 = plt.subplot(gs[1,0],sharex=ax0)
 	if any([rFiles,randomassignments]):
 		ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(denseRandom,names,'A','T')
 	# Stats
@@ -523,6 +527,9 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 # 			ax1.plot(fillX,ranATstd,linewidth=1,alpha=0.3)
 	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
+	ax0.hlines(y=62,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+	ax0.text(32,62,'{0}bp sliding window'.format(window),size=12)
+	ax0.legend()
 # 	ax0.set_title('Mean AT Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
 	ax1.plot(fillX,ATstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
@@ -538,8 +545,6 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
-# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 		plot.text(32,65,'11bp sliding window',size=6)
 
 	sns.despine()
 	pp.savefig()
@@ -596,8 +601,8 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
-# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 		plot.text(32,65,'11bp sliding window',size=6)
+		plot.hlines(y=62,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+		plot.text(32,62,'{0}bp sliding window'.format(window),size=12)
 
 	sns.despine()
 	pp.savefig()

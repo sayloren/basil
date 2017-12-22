@@ -234,12 +234,12 @@ def collect_element_coordinates(fileName):
 # run the sliding window for a string in a column
 def run_sliding_window(feature):
 	outCollect = []
-	n = inset*2
+	n = inuce*2
 	s = 1
 	start, end = 0, window
 	while end < n:
 		current = feature[start:end]
-		percentage = float(100*current.count(key)/len(current))
+		percentage = float(100*(current.count('A')+current.count('T'))/len(current))
 		outCollect.append(percentage)
 		start, end = start + s, end + s
 	return outCollect
@@ -250,13 +250,44 @@ def collect_sliding_window_values(rangeFeatures):
 	rangeFeatures['eWindow'] = rangeFeatures.apply(lambda row: (run_sliding_window(row['eSeq'])),axis=1)
 	return rangeFeatures
 
-# def boundary_inflection_point_locations(rangeFeatures):
+# Collect each UCEs second derivative, find their inflection points
+def behaviorlocate_second_derivative_inflection_pointsUCE(ATgroup):
+	inflectionPts = []
+	for index, row in ATgroup.iterrows():
+		collectUCE = []
+		collectUCE.append(index)
+		f = splrep(GlobalVariables.fillX,row,k=5,s=11)
+		smoothMean = splev(GlobalVariables.fillX,f)
+		secondDer = splev(GlobalVariables.fillX,f,der=2)
+		secondDer[0:GlobalVariables.window] = 0 # small edge effect
+		secondDer[-GlobalVariables.window:] = 0 # small edge effect
+		peaks = signal.find_peaks_cwt(secondDer,np.arange(1,45))
+		peaksOut = [s for s in peaks if s > (GlobalVariables.window*3) and s < (GlobalVariables.num-(GlobalVariables.window*3))] # Get rid of edge effects
+		collectUCE.append(peaksOut)
+		inflectionPts.append(collectUCE)
+	peaksUCE = pd.DataFrame(inflectionPts)
+	print 'Collected inflection points for {0} elements'.format(len(ATgroup.index))
+	return peaksUCE
 
+
+def locate_inflection_points(feature):
+	outCollect = []
+	n = inuce*2
+	f = splrep(in,feature,k=5,s=11)
+	secondDer = splev(n,f,der=2)
+	secondDer[0:window] = 0 # small edge effect
+	secondDer[-window:] = 0 # small edge effect
+	peaks = signal.find_peaks_cwt(secondDer,np.arange(1,45))
+
+def collect_boundary_inflection_points(rangeFeatures):
+	rangeFeatures['sInflection'] = rangeFeatures.apply(lambda row: (locate_inflection_points(row['sWindow'])),axis=1)
+	rangeFeatures['eInflection'] = rangeFeatures.apply(lambda row: (locate_inflection_points(row['eWindow'])),axis=1)
+	return rangeFeatures
 
 # With the results from compare_boundaries_size_n per each element, evaluate directionality into new column
-def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
+def locate_inflection_point_directionality(rangeFeatures,fileName):
 	rangeFeatures = collect_sliding_window_values(rangeFeatures)
-	print rangeFeatures
+	
 
 	return rangeFeatures
 
@@ -272,7 +303,7 @@ def main():
 	
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
-	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
+	directionFeatures = locate_inflection_point_directionality(rangeFeatures,eFiles)
 	
 	# If label column is supplied to split df by type
 	if labelcolumn:
@@ -289,7 +320,7 @@ def main():
 				lengthrandom.append('randomfiles')
 				for randomFile in rFiles:
 					randomFeatures = collect_element_coordinates(randomFile)
-					randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
+					randirFeatures= locate_inflection_point_directionality(randomFeatures,randomFile)
 					rantypeBool,rantypeWindow,rantypeNames = separate_dataframe_by_group(type,randirFeatures,'type',randomFile)
 					spreadRandomtype.append(rantypeWindow)
 					if reverseComplement:
@@ -327,7 +358,7 @@ def main():
 			lengthrandom.append('randomfiles')
 			for randomFile in rFiles:
 				randomFeatures = collect_element_coordinates(randomFile)
-				randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
+				randirFeatures= locate_inflection_point_directionality(randomFeatures,randomFile)
 				sWindow,sNames = sliding_window_wrapper(randirFeatures['combineString'],randirFeatures['id'])
 				spreadRandom.append(sWindow)
 				if reverseComplement:
