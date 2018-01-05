@@ -231,6 +231,8 @@ def get_fasta_for_element_coordinates(rangeFeatures):
 	rangeFeatures['eBoundarySeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','end','eBoundary']].values.astype(str).tolist()))
 	rangeFeatures['combineString'] = rangeFeatures['sBoundarySeq'].astype(str) + rangeFeatures['sEdgeSeq'].astype(str) + rangeFeatures['MiddleSeq'].astype(str) + rangeFeatures['eEdgeSeq'].astype(str) + rangeFeatures['eBoundarySeq'].astype(str)
 	rangeFeatures['combineString'] = rangeFeatures['combineString'].str.upper()
+	rangeFeatures['elementString'] = rangeFeatures['sEdgeSeq'].astype(str) + rangeFeatures['MiddleSeq'].astype(str) + rangeFeatures['eEdgeSeq'].astype(str)
+	rangeFeatures['elementString'] = rangeFeatures['elementString'].str.upper()
 	rangeFeatures=rangeFeatures.drop(['size','sBoundarySeq','sEdgeSeq','MiddleSeq','eEdgeSeq','eBoundarySeq','sBoundary','sEdge','sCenter','eCenter','eEdge','eBoundary'],axis=1)
 	print 'collected the sequence strings for running the sliding window'
 	return rangeFeatures
@@ -656,7 +658,7 @@ def main():
 	
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
-	percentage_at_for_element(rangeFeatures['combineString'],eFiles)
+	percentage_at_for_element(rangeFeatures['elementString'],eFiles)
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
 	
 	# Get the probability for each directional assignment, and use to randomly assign the correct number of random directions
