@@ -233,6 +233,8 @@ def get_fasta_for_element_coordinates(rangeFeatures):
 	rangeFeatures['combineString'] = rangeFeatures['combineString'].str.upper()
 	rangeFeatures['elementString'] = rangeFeatures['sEdgeSeq'].astype(str) + rangeFeatures['MiddleSeq'].astype(str) + rangeFeatures['eEdgeSeq'].astype(str)
 	rangeFeatures['elementString'] = rangeFeatures['elementString'].str.upper()
+	rangeFeatures['flankString'] = rangeFeatures['sBoundarySeq'].astype(str) + rangeFeatures['eBoundarySeq'].astype(str)
+	rangeFeatures['flankString'] = rangeFeatures['flankString'].str.upper()
 	rangeFeatures=rangeFeatures.drop(['size','sBoundarySeq','sEdgeSeq','MiddleSeq','eEdgeSeq','eBoundarySeq','sBoundary','sEdge','sCenter','eCenter','eEdge','eBoundary'],axis=1)
 	print 'collected the sequence strings for running the sliding window'
 	return rangeFeatures
@@ -251,12 +253,12 @@ def get_just_fasta_sequence_for_feature(inFeature):
 	return outSequence
 
 # Get the percentage AT in the element
-def percentage_at_for_element(region,group):
+def percentage_at_for_element(region,seq,group):
 	collectAT = []
 	for r in region:
 		collectAT.append(eval('100*float(r.count("A") + r.count("a") + r.count("T") + r.count("t"))/len(r)'))
 	pdAT = pd.DataFrame(collectAT)
-	print 'mean at content for {0} elements in {1} is {2} %'.format(len(region.index),group,pdAT.mean())
+	print 'mean at content for {0} {1} in {2} is {3} %'.format(len(region.index),seq,group,pdAT.mean())
 
 # get coordinates with flanking regions
 def collect_element_coordinates(fileName):
@@ -658,7 +660,9 @@ def main():
 	
 	# Get coords and strings for elements
 	rangeFeatures = collect_element_coordinates(eFiles)
-	percentage_at_for_element(rangeFeatures['elementString'],eFiles)
+	percentage_at_for_element(rangeFeatures['elementString'],'elements',eFiles)
+	percentage_at_for_element(rangeFeatures['flankString'],'flanks',eFiles)
+	percentage_at_for_element(rangeFeatures['combineString'],'full string',eFiles)
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
 	
 	# Get the probability for each directional assignment, and use to randomly assign the correct number of random directions
@@ -670,7 +674,6 @@ def main():
 		typeList = directionFeatures['type'].unique()
 		for type in typeList:
 			typeBool,typeWindow,typeNames = separate_dataframe_by_group(type,directionFeatures,'type',eFiles)
-			percentage_at_for_element(typeBool['combineString'],'{0}, {1}'.format(eFiles,type))
 			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
 			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC,lengthrandom=[],[],[],[],[]
 			
