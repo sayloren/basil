@@ -673,7 +673,11 @@ def main():
 	if labelcolumn:
 		typeList = directionFeatures['type'].unique()
 		for type in typeList:
+			print 'Now running {0} elements'.format(type)
 			typeBool,typeWindow,typeNames = separate_dataframe_by_group(type,directionFeatures,'type',eFiles)
+			percentage_at_for_element(typeBool['elementString'],'elements',eFiles)
+			percentage_at_for_element(typeBool['flankString'],'flanks',eFiles)
+			percentage_at_for_element(typeBool['combineString'],'full string',eFiles)
 			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
 			spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC,lengthrandom=[],[],[],[],[]
 			
