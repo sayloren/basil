@@ -45,9 +45,9 @@ def get_args():
 	parser.add_argument("efile",type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
 	parser.add_argument("-m","--methylationfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
-	parser.add_argument("-lc", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
-	parser.add_argument("-dc", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
-	parser.add_argument("-ic", "--idcolumn",type=int,help='column in the element file where the id is')
+	parser.add_argument("-l", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
+	parser.add_argument("-d", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
+	parser.add_argument("-i", "--idcolumn",type=int,help='column in the element file where the id is')
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
 	parser.add_argument("-p","--periphery",type=int,default="10",help='number bp from your boundary you want to include in the analysis')
@@ -302,12 +302,16 @@ def collect_total_avail_cpg_values(btFeatures):
 		print 'There are no features with "-" directionality'
 	return upcpgcount,downcpgcount,revupcpgcount,revdowncpgcount
 
-# run the whole series of steps to make the data frame for each set of elements
-def run_whole_analysis(file,label):
+# make the original input data frame
+def collect_input_data_frame(file):
 	rangeFeatures = collect_element_coordinates(file)
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,file)
-	upcpg,downcpg,revupcpg,revdowncpg = collect_total_avail_cpg_values(directionFeatures)
-	allstream = collect_methylation_data_by_element(directionFeatures)
+	return directionFeatures
+
+# run the whole series of steps to make the data frame for each set of elements to plot
+def run_whole_analysis_for_boundaries(pdfeatures,label):
+	upcpg,downcpg,revupcpg,revdowncpg = collect_total_avail_cpg_values(pdfeatures)
+	allstream = collect_methylation_data_by_element(pdfeatures)
 	allstream['group'] = label
 	allstream['organization'] = 'unsorted'
 	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
@@ -319,35 +323,37 @@ def run_whole_analysis(file,label):
 
 # remove duplicates counts by groupby params
 def group_data_frame(pdfeatures):
-	methsort = pdfeatures.sort_values(by=['organization','group','boundary','Tissue','percpgmeth'],ascending=True)
+	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','percpgmeth'],ascending=True)# 'organization'
 	# incase interested in other aspects 'cytosine' and 'methlocation' features  dcould be preserved as well
 	methdup = methsort.drop_duplicates(['percpgmeth','Tissue','group'],keep='last')
 	return methdup
 
 # Make graphs for fangs
-def graph_boundary_methylation(pdfeatures,fileName):
-	info = str(fileName)
+def graph_boundary_methylation(pdfeatures,filelabel):
+	info = str(filelabel)
 	sns.set_style('ticks')
-	pp = PdfPages('Methylation_{0}.pdf'.format(fileName))
+	pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 	surroundingfang = periphery*2
 	sns.set_palette("Blues")
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
 	
-	unsorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
-	removedup = group_data_frame(unsorted)
-	print removedup
+	if reverseComplement:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
+	else:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
+	print sorted
+	removedup = group_data_frame(sorted)
 	element = removedup[removedup['group']=='element']
 	random  = removedup[removedup['group']!='element']
-	
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:])
 	sns.barplot(data=element,x='Tissue',y='percpgmeth',hue='boundary',ax=ax0)
 	sns.barplot(data=random,x='Tissue',y='percpgmeth',hue='boundary',ax=ax1)
+	ax0.set_title("UCEs")
+	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
 	for plot in subplots:
 		plot.tick_params(axis='both',which='major',labelsize=16)
@@ -357,27 +363,32 @@ def graph_boundary_methylation(pdfeatures,fileName):
 	pp.savefig()
 	pp.close()
 
-def main():
-	args = get_args()
-	set_global_variables(args)
-	paramlabels = '{0}_{1}_{2}_{3}_{4}'.format(elementsize,periphery,binDir,eFiles,stringName)
+# run the whole series of steps through to graphing
+def run_whole_script_for_group(pdfeatures,rFiles,label):
 	collect = []
-	allstream,allreverse = run_whole_analysis(eFiles,'element')
+	allstream,allreverse = run_whole_analysis_for_boundaries(pdfeatures,'element')
 	collect.append(allstream)
 	collect.append(allreverse)
 	for randomFile in rFiles:
-		ranstream,ranreverse = run_whole_analysis(randomFile,'random{0}'.format(randomFile))
+		randomFeatures = collect_input_data_frame(randomFile)
+		ranstream,ranreverse = run_whole_analysis_for_boundaries(randomFeatures,'random{0}'.format(randomFile))
 		collect.append(ranstream)
 		collect.append(ranreverse)
 	concat = pd.concat(collect)
 	concat['percpgmeth'] = (concat['methcount']/concat['cpgsum'])*100.0
 	concat.reset_index(drop=True,inplace=True)
-	graph_boundary_methylation(concat,'all_{0}'.format(paramlabels))
+	graph_boundary_methylation(concat,'{0}'.format(label))
 
-# 	if labelcolumn:
-# 		typeList = directionFeatures['type'].unique()
-# 		for type in typeList:
-# 		typeBool,typeupstreammethylation,typedownstreammethylation = separate_dataframe_by_group(type,rangeFeatures,'type',eFiles)
+def main():
+	args = get_args()
+	set_global_variables(args)
+	directionFeatures = collect_input_data_frame(eFiles)
+	run_whole_script_for_group(directionFeatures,rFiles,'All')
+	if labelcolumn:
+		typeList = directionFeatures['type'].unique()
+		for type in typeList:
+			typefeatures = (directionFeatures[directionFeatures['type'] == type])
+			run_whole_script_for_group(typefeatures,rFiles,type)
 
 if __name__ == "__main__":
 	main()
