@@ -42,72 +42,57 @@ from scipy.stats import mstats
 def get_args():
 	# File lists
 	parser = argparse.ArgumentParser(description="Description")
-	parser.add_argument("efile", type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
-	parser.add_argument("-r","--randomfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
-	parser.add_argument("-m","--methylationfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
-	# Columns in element file - all 0 based
+	parser.add_argument("efile",type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
+	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
+	parser.add_argument("-m","--methylationfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
 	parser.add_argument("-lc", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
 	parser.add_argument("-dc", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-ic", "--idcolumn",type=int,help='column in the element file where the id is')
-	# Genome Files
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
-	# Integer Parameters for element
 	parser.add_argument("-p","--periphery",type=int,default="10",help='number bp from your boundary you want to include in the analysis')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')#,default="200"
-	# Integer Parameters for methlation
 	parser.add_argument("-mp", "--methylationthresholdpercentage", type=int, default="10", help='size to threshold % methylation data')
 	parser.add_argument("-mc", "--methylationthresholdcoverage", type=int, default="10", help='size to threshold uncapped coverage of methylation data to send to % methylation, field often uses 10')
-	# Plot parameters
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
-	parser.add_argument('-t',"--twographs",action='store_true',help='if you want to see the upstream and downstream boundaries separately')
-	# Add additional descriptive file name information
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
 def set_global_variables(args):
-	# Integer parameters
 	global periphery
 	global binDir
 	global elementsize
-	periphery = args.periphery
-	binDir = args.bin
-	elementsize = args.element
-	# Methylation percentage and coverage thresholds
 	global methPerThresh
 	global methCovThresh
-	methPerThresh = args.methylationthresholdpercentage
-	methCovThresh = args.methylationthresholdcoverage
-	# Element, random regions and methylation files
 	global eFiles
 	global rFiles
 	global mFiles
+	global labelcolumn
+	global directionalitycolumn
+	global idcolumn
+	global sizeGenome
+	global faGenome
+	global stringName
+	global reverseComplement
+	periphery = args.periphery
+	binDir = args.bin
+	elementsize = args.element
+	methPerThresh = args.methylationthresholdpercentage
+	methCovThresh = args.methylationthresholdcoverage
 	eFiles = args.efile
 	mFiles = [line.strip() for line in args.methylationfile]
 	if args.randomfile:
 		rFiles = [line.strip() for line in args.randomfile]
 	else:
 		rFiles = None
-	# Column labels in element file
-	global labelcolumn
-	global directionalitycolumn
-	global idcolumn
 	labelcolumn = args.labelcolumn
 	directionalitycolumn = args.directionalitycolumn
 	idcolumn = args.idcolumn
-	# Genome files from UCSC
-	global sizeGenome
-	global faGenome
 	sizeGenome = args.genome
 	faGenome = args.fasta
-	# A string to add to the out file name in case you want to set up runs and let be
-	global stringName
-	global splitgraphs
-	global reverseComplement
 	stringName = args.stringname
-	splitgraphs = args.twographs
 	reverseComplement = args.reversecomplement
 
 # get bt features
@@ -157,15 +142,13 @@ def get_just_fasta_sequence_for_feature(inFeature):
 	seqFeature = inFeature.sequence(fi=faGenome)
 	outFeature = pd.read_table(seqFeature.seqfn)
 	outSequence = outFeature[::2]
-	outSequence = outSequence.reset_index(drop=True)
-	return outSequence
+	return outSequence.reset_index(drop=True)
 
 # get coordinates with flanking regions
 def collect_element_coordinates(fileName):
 	btFeatures = get_bedtools_features(fileName)
 	subsetFeatures = collect_coordinates_for_element_positions(btFeatures)
-	rangeFeatures = get_fasta_for_element_coordinates(subsetFeatures)
-	return rangeFeatures
+	return get_fasta_for_element_coordinates(subsetFeatures)
 
 # Do the comparison between boundaries to get + - or =
 def calculate_nucleotides_at(element,size):
@@ -176,15 +159,9 @@ def calculate_nucleotides_at(element,size):
 	perSize.append(eval('100*float(end.count("A") + end.count("a") + end.count("T") + end.count("t"))/len(end)'))
 	return perSize
 
-# get the reverse complement
-def reverse_complement_dictionary(sequence):
-	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
-	return "".join([seqDict[base] for base in reversed(sequence)])
-
 # Directionality, as inferred by comparing first and last n base pairs from input parameters
 def compare_boundaries_size_n(element,size):
 	perSize = calculate_nucleotides_at(element,size)
-	# give + - = depending on which side has larger AT content
 	if perSize[0] > perSize[1]: outList = '+'
 	if perSize[1] > perSize[0]: outList = '-'
 	if perSize[1] == perSize[0]: outList = '='
@@ -196,7 +173,6 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 		rangeFeatures['feature'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','end']].values.astype(str).tolist()))
 		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
-# 		rangeFeatures=rangeFeatures.drop(['feature'],axis=1)
 		numval = rangeFeatures['directionality'].value_counts()
 	print '{0} in {1}'.format(numval,fileName)
 	return rangeFeatures
@@ -208,14 +184,12 @@ def save_bedtool_as_bedfile(btObject,strFilename):
 # convert bedtool to panda
 def convert_bedtool_to_panda(btobject):
 	save_bedtool_as_bedfile(btobject,'temp.bed')
-	pdObject = pd.read_table(btobject.fn, header=None)
-	return pdObject
+	return pd.read_table(btobject.fn, header=None)
 
 # convert panda to bedtool
 def convert_panda_to_bed_format(panda):
 	arArFeatures = panda.values.tolist()
-	btoutFeatures = get_bedtools_features(arArFeatures)
-	return btoutFeatures
+	return get_bedtools_features(arArFeatures)
 
 # Threshold methylation data by coverage and percentage
 def threshold_methylation_data(methFeatures,methName):
@@ -285,9 +259,9 @@ def negative_directionality_columns_to_modify(negFeatures):
 	reverseRange = originalRange[::-1]
 	rangeDict = dict(zip(originalRange,reverseRange))
 	boundaryDict = {'up stream':'down stream','down stream':'up stream'}
-	negFeatures['newmethlocation'] = negFeatures.methlocation.map(rangeDict)
-	negFeatures['newcytosine'] = negFeatures.cytosine.map(seqDict)
-	negFeatures['newboundary'] = negFeatures.boundary.map(boundaryDict)
+	negFeatures['newmethlocation'] = negFeatures.loc[:,'methlocation'].map(rangeDict)
+	negFeatures['newboundary'] = negFeatures.loc[:,'boundary'].map(boundaryDict)
+	negFeatures['newcytosine'] = negFeatures.loc[:,'cytosine'].map(seqDict)
 	newnegFeatures = negFeatures[['chr','id','directionality','newmethlocation','percentage','newcytosine','newboundary','Tissue','group']]
 	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','cytosine','boundary','Tissue','group']
 	return newnegFeatures
@@ -304,14 +278,13 @@ def modify_negative_directionality_elements(btFeatures):
 		outFeatures = totalFeatures[['chr','id','directionality','methlocation','percentage','cytosine','methcount','boundary','Tissue']]
 	else:
 		outFeatures = btFeatures
-		print 'There are no features with "-" directionality'
+		print 'There are no features with "-" directionality, will use the original unsorted set for the analysis'
 	return outFeatures
 
 # get the total cpg in a column of strings
 def collect_total_avail_cpg_in_column(btFeatures,column):
 	btFeatures['cpgcount'] = btFeatures.apply(lambda row: float(row[column].count("CG")),axis=1)
-	cpgsum = btFeatures['cpgcount'].sum()
-	return cpgsum
+	return btFeatures['cpgcount'].sum()
 
 # collect the values for up/down/rev up/rev down stream total cpg counts
 def collect_total_avail_cpg_values(btFeatures):
@@ -324,11 +297,32 @@ def collect_total_avail_cpg_values(btFeatures):
 		revFeatures = pd.concat([newnegFeatures,nonFeatures])
 		revupcpgcount = collect_total_avail_cpg_in_column(revFeatures,'upstreamsequence')
 		revdowncpgcount = collect_total_avail_cpg_in_column(revFeatures,'downstreamsequence')
-# 		stream['cpgsequencecountsumcombineboundary'] = upcpgcountsum + downcpgcountsum
 	else:
 		revupcpgcount,revdowncpgcount=upcpgcount,downcpgcount
 		print 'There are no features with "-" directionality'
 	return upcpgcount,downcpgcount,revupcpgcount,revdowncpgcount
+
+# run the whole series of steps to make the data frame for each set of elements
+def run_whole_analysis(file,label):
+	rangeFeatures = collect_element_coordinates(file)
+	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,file)
+	upcpg,downcpg,revupcpg,revdowncpg = collect_total_avail_cpg_values(directionFeatures)
+	allstream = collect_methylation_data_by_element(directionFeatures)
+	allstream['group'] = label
+	allstream['organization'] = 'unsorted'
+	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
+	allreverse = modify_negative_directionality_elements(allstream)
+	allreverse['group'] = label
+	allreverse['organization'] = 'rcsorted'
+	allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
+	return allstream,allreverse
+
+# remove duplicates counts by groupby params
+def group_data_frame(pdfeatures):
+	methsort = pdfeatures.sort_values(by=['organization','group','boundary','Tissue','percpgmeth'],ascending=True)
+	# incase interested in other aspects 'cytosine' and 'methlocation' features  dcould be preserved as well
+	methdup = methsort.drop_duplicates(['percpgmeth','Tissue','group'],keep='last')
+	return methdup
 
 # Make graphs for fangs
 def graph_boundary_methylation(pdfeatures,fileName):
@@ -338,83 +332,46 @@ def graph_boundary_methylation(pdfeatures,fileName):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 	surroundingfang = periphery*2
-
-	if not splitgraphs:
-		gs = gridspec.GridSpec(1,1,height_ratios=[1])
-		gs.update(hspace=.8)
-		
-		ax0 = plt.subplot(gs[0,:])
-		sns.barplot(data=pdfeatures,x='Tissue',y='percpgmeth',hue='organization',ax=ax0)#,palette={"Element":'#8ba6e9',"Random":'#bed0f4'}
-		ax0.set_ylabel('% CpGs Methylated',size=16)
-		ax0.tick_params(axis='both',which='major',labelsize=16)
-
-	else:
-		gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
-		gs.update(hspace=.8)
-		ax0 = plt.subplot(gs[0,:])
-		ax1 = plt.subplot(gs[1,:])
-		
-# 		Elements = sortstreams[sortstreams['barcolor']=='Element']
-# 		Randoms = sortstreams[sortstreams['barcolor']=='Random']
-# 		
-# 		sns.barplot(data=Elements,x='Tissue',y='percpgmeth',hue='boundary',ax=ax0)#,palette={"Upstream":'#8ba6e9',"Downstream":'#d7b7bc'}
-# 		sns.barplot(data=Randoms,x='Tissue',y='percpgmeth',hue='boundary',ax=ax1)#,palette={"Upstream":'#bed0f4',"Downstream":'#f7e4e0'}
-# 		ax0.tick_params(axis='both',which='major',labelsize=16)
-# 		ax1.tick_params(axis='both',which='major',labelsize=16)
-# 		ax0.set_ylabel('% CpGs Methylated',size=16)
-# 		ax1.set_ylabel('% CpGs Methylated',size=16)
-
+	sns.set_palette("Blues")
+	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
+	gs.update(hspace=.8)
+	ax0 = plt.subplot(gs[0,:])
+	ax1 = plt.subplot(gs[1,:])
+	
+	unsorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
+	removedup = group_data_frame(unsorted)
+	print removedup
+	element = removedup[removedup['group']=='element']
+	random  = removedup[removedup['group']!='element']
+	
+	ax0 = plt.subplot(gs[0,:])
+	ax1 = plt.subplot(gs[1,:])
+	sns.barplot(data=element,x='Tissue',y='percpgmeth',hue='boundary',ax=ax0)
+	sns.barplot(data=random,x='Tissue',y='percpgmeth',hue='boundary',ax=ax1)
+	subplots = [ax0,ax1]
+	for plot in subplots:
+		plot.tick_params(axis='both',which='major',labelsize=16)
+		plot.set_ylabel('% CpGs Methylated',size=16)
+		plot.set_xlabel("Tissue",fontsize=16)
 	sns.despine()
 	pp.savefig()
 	pp.close()
 
 def main():
-	# Get and set parameters
 	args = get_args()
 	set_global_variables(args)
 	paramlabels = '{0}_{1}_{2}_{3}_{4}'.format(elementsize,periphery,binDir,eFiles,stringName)
-	
-	rangeFeatures = collect_element_coordinates(eFiles)
-	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
-	
-	upcpg,downcpg,revupcpg,revdowncpg = collect_total_avail_cpg_values(directionFeatures)
-	
-	collect = [] # initiate collections
-	
-	allstream = collect_methylation_data_by_element(directionFeatures)
-	allstream['group'] = 'element'
-	allstream['organization'] = 'unsorted'
-	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
+	collect = []
+	allstream,allreverse = run_whole_analysis(eFiles,'element')
 	collect.append(allstream)
-	
-	if rFiles:
-		for randomFile in rFiles:
-			randomFeatures = collect_element_coordinates(randomFile)
-			randirFeatures= assign_directionality_from_arg_or_boundary(randomFeatures,randomFile)
-			ranupcpg,randowncpg,ranrevupcpg,ranrevdowncpg = collect_total_avail_cpg_values(randirFeatures)
-			allrandom = collect_methylation_data_by_element(randirFeatures)
-			allrandom['group'] = 'random{0}'.format(randomFile)
-			allrandom['organization'] = 'unsorted'
-			allrandom['cpgsum'] = np.where(allrandom['boundary'] == 'up stream',ranupcpg,randowncpg)
-			collect.append(allrandom)
-			
-			if reverseComplement:
-				randomrev = modify_negative_directionality_elements(randirFeatures)
-				randomrev['group'] = 'random{0}'.format(randomFile)
-				randomrev['organization'] = 'rcsorted'
-				randomrev['cpgsum'] = np.where(randomrev['boundary'] == 'up stream',ranrevupcpg,ranrevdowncpg)
-				collect.append(randomrev)
-	
-	if reverseComplement:
-		allreverse = modify_negative_directionality_elements(allstream)
-		allreverse['group'] = 'element'
-		allreverse['organization'] = 'rcsorted'
-		allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
-		collect.append(allreverse)
-		
+	collect.append(allreverse)
+	for randomFile in rFiles:
+		ranstream,ranreverse = run_whole_analysis(randomFile,'random{0}'.format(randomFile))
+		collect.append(ranstream)
+		collect.append(ranreverse)
 	concat = pd.concat(collect)
-	concat['percpgmeth'] = concat['methcount']/concat['cpgsum']*100.0
-	print concat
+	concat['percpgmeth'] = (concat['methcount']/concat['cpgsum'])*100.0
+	concat.reset_index(drop=True,inplace=True)
 	graph_boundary_methylation(concat,'all_{0}'.format(paramlabels))
 
 # 	if labelcolumn:
