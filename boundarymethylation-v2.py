@@ -38,23 +38,26 @@ from scipy.interpolate import splrep, splev
 import scipy.stats as ss
 from scipy.stats import mstats
 
-# set command line arguments
 def get_args():
-	# File lists
 	parser = argparse.ArgumentParser(description="Description")
 	parser.add_argument("efile",type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
-	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
-	parser.add_argument("-m","--methylationfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
+	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast")
+	parser.add_argument("-m","--methylationfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
+
 	parser.add_argument("-l", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
 	parser.add_argument("-d", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-i", "--idcolumn",type=int,help='column in the element file where the id is')
+
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
+
 	parser.add_argument("-p","--periphery",type=int,default="10",help='number bp from your boundary you want to include in the analysis')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
-	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')#,default="200"
-	parser.add_argument("-mp", "--methylationthresholdpercentage", type=int, default="10", help='size to threshold % methylation data')
-	parser.add_argument("-mc", "--methylationthresholdcoverage", type=int, default="10", help='size to threshold uncapped coverage of methylation data to send to % methylation, field often uses 10')
+	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
+
+	parser.add_argument("-mp","--methylationthresholdpercentage",type=int, default="10",help='size to threshold percentage methylation data')
+	parser.add_argument("-mc","--methylationthresholdcoverage",type=int,default="10",help='size to threshold uncapped coverage of methylation data to send to percentage methylation, field often uses 10')
+
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	return parser.parse_args()
@@ -332,19 +335,18 @@ def group_data_frame(pdfeatures):
 def graph_boundary_methylation(pdfeatures,filelabel):
 	info = str(filelabel)
 	sns.set_style('ticks')
-	pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
+	if reverseComplement:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
+		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
+	else:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
+		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
 	plt.figure(figsize=(14,7))
-	plt.suptitle(info,fontsize=10)
+	plt.suptitle(info,fontsize=16)
 	surroundingfang = periphery*2
 	sns.set_palette("Blues")
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
-	
-	if reverseComplement:
-		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
-	else:
-		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
-	print sorted
 	removedup = group_data_frame(sorted)
 	element = removedup[removedup['group']=='element']
 	random  = removedup[removedup['group']!='element']
