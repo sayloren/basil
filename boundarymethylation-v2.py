@@ -324,12 +324,26 @@ def run_whole_analysis_for_boundaries(pdfeatures,label):
 	allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
 	return allstream,allreverse
 
-# remove duplicates counts by groupby params
-def group_data_frame(pdfeatures):
-	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','percpgmeth'],ascending=True)# 'organization'
-	# incase interested in other aspects 'cytosine' and 'methlocation' features  dcould be preserved as well
-	methdup = methsort.drop_duplicates(['percpgmeth','Tissue','group'],keep='last')
+# remove duplicates counts by groupby params from percentage cpg methylation
+def group_data_frame_by_cpgmethylation(pdfeatures):
+	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)# 'organization'
+	# incase interested in other aspects 'cytosine','percentage', and 'methlocation' features could be preserved as well
+	methdup = methsort.drop_duplicates(['methcount','Tissue','group'],keep='last')
 	return methdup
+
+# remove duplicates counts by groupby params from methylation strand
+def group_data_frame_by_strand(pdfeatures):
+	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)# 'organization'
+	# incase interested in other aspects 'percentage', and 'methlocation' features could be preserved as well
+	methsort['cytosinecount'] = pdfeatures.groupby(['group','boundary','Tissue','cytosine'])['cytosine'].transform('count')
+	methdup = methsort.drop_duplicates(['methcount','Tissue','group','cytosine','cytosinecount'],keep='last')
+	return methdup
+
+# separate the elements and the random regions
+def seperate_elements_and_random(pdfeatures):
+	element = pdfeatures[pdfeatures['group']=='element']
+	random  = pdfeatures[pdfeatures['group']!='element']
+	return element,random
 
 # Make graphs for fangs
 def graph_boundary_methylation(pdfeatures,filelabel):
@@ -347,16 +361,33 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	sns.set_palette("Blues")
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
-	removedup = group_data_frame(sorted)
-	element = removedup[removedup['group']=='element']
-	random  = removedup[removedup['group']!='element']
+	
+	# graph count cpgs methylated
+	removedupcpgper = group_data_frame_by_cpgmethylation(sorted)
+	elementcpgper,randomcpgper = seperate_elements_and_random(removedupcpgper)
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:])
-	sns.barplot(data=element,x='Tissue',y='percpgmeth',hue='boundary',ax=ax0)
-	sns.barplot(data=random,x='Tissue',y='percpgmeth',hue='boundary',ax=ax1)
+	sns.barplot(data=elementcpgper,x='Tissue',y='methcount',hue='boundary',ax=ax0)# 'percpgmeth'
+	sns.barplot(data=randomcpgper,x='Tissue',y='methcount',hue='boundary',ax=ax1)# 'percpgmeth'
 	ax0.set_title("UCEs")
 	ax1.set_title("Random Regions")
-	subplots = [ax0,ax1]
+	plt.savefig(pp, format='pdf')
+	
+	# graph strand cpgs methylated
+	removedupstrand = group_data_frame_by_strand(sorted)
+	elementstrand,randomstrand = seperate_elements_and_random(removedupstrand)
+	ax2 = plt.subplot(gs[0,:])
+	ax3 = plt.subplot(gs[1,:])
+	sns.barplot(data=elementstrand,x='Tissue',y='cytosinecount',hue='boundary',ax=ax2)# 'percpgmeth'
+	sns.barplot(data=randomstrand,x='Tissue',y='cytosinecount',hue='boundary',ax=ax3)# 'percpgmeth'
+	ax2.set_title("UCEs")
+	ax3.set_title("Random Regions")
+	
+	# location
+	
+	# percentage
+	
+	subplots = [ax0,ax1,ax3,ax4]
 	for plot in subplots:
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_ylabel('% CpGs Methylated',size=16)
