@@ -362,7 +362,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
 	
-	# graph count cpgs methylated
+	# graph number cpgs methylated
 	removedupcpgper = group_data_frame_by_cpgmethylation(sorted)
 	elementcpgper,randomcpgper = seperate_elements_and_random(removedupcpgper)
 	ax0 = plt.subplot(gs[0,:])
@@ -386,6 +386,8 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	# location
 	
 	# percentage
+	
+	# percentage cpg methylation
 	
 	subplots = [ax0,ax1,ax3,ax4]
 	for plot in subplots:
