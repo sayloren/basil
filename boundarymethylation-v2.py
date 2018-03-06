@@ -18,6 +18,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+To Do:
+Get the number of C and G avaial to form CpG
+Questions and appropriate stats
+Other methylation questions
+Which samples to use
+
 """
 
 import argparse
@@ -215,10 +221,10 @@ def intersect_methylation_data_by_element(btFeatures,meFeature,meName,eStart,eEn
 		pdmeth=convert_bedtool_to_panda(intersectboundary)
 		pdmeth['int']=0
 		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr',sBound,eBound,'id','int']
-		pdmeth['cytosine'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
+		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmeth['methlocation'] = pdmeth['int'].astype(int)+(pdmeth['mstart'].astype(int)-pdmeth[sBound].astype(int))
-		outmethylation = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','cytosine']]
-		outmethylation.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','cytosine']
+		outmethylation = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','strand']]
+		outmethylation.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','strand']
 		sortoutmethylation = outmethylation.sort_values(['methlocation'],ascending=True)
 	else:
 		sortoutmethylation = None
@@ -232,10 +238,10 @@ def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column,
 		merge = pd.merge(methdf,subfeatures,how='left',on='id')
 		merge['methcount'] = len(merge.index)
 		merge['boundary'] = boundary
-		subMeth = merge[['chr','id','directionality','methlocation','percentage','cytosine','methcount','boundary','Tissue']]
-		subMeth.columns = ['chr','id','directionality','methlocation','percentage','cytosine','methcount','boundary','Tissue']
+		subMeth = merge[['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']]
+		subMeth.columns = ['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']
 	else:
-		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','directionality','methlocation','percentage','cytosine','methcount','boundary'])
+		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','directionality','methlocation','percentage','strand','methcount','boundary'])
 		subMeth['Tissue'] = name.replace('.bed','')
 	return subMeth
 
@@ -264,9 +270,9 @@ def negative_directionality_columns_to_modify(negFeatures):
 	boundaryDict = {'up stream':'down stream','down stream':'up stream'}
 	negFeatures['newmethlocation'] = negFeatures.loc[:,'methlocation'].map(rangeDict)
 	negFeatures['newboundary'] = negFeatures.loc[:,'boundary'].map(boundaryDict)
-	negFeatures['newcytosine'] = negFeatures.loc[:,'cytosine'].map(seqDict)
-	newnegFeatures = negFeatures[['chr','id','directionality','newmethlocation','percentage','newcytosine','newboundary','Tissue','group']]
-	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','cytosine','boundary','Tissue','group']
+	negFeatures['newstrand'] = negFeatures.loc[:,'strand'].map(seqDict)
+	newnegFeatures = negFeatures[['chr','id','directionality','newmethlocation','percentage','newstrand','newboundary','Tissue','group']]
+	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','strand','boundary','Tissue','group']
 	return newnegFeatures
 
 # Separate on plus and minus orientation, rcsort and return methylation
@@ -278,7 +284,7 @@ def modify_negative_directionality_elements(btFeatures):
 		totalFeatures = pd.concat([newnegFeatures,nonFeatures])
 		totalFeatures['methgroupby'] = totalFeatures.groupby(['Tissue','id','methlocation','boundary'])['Tissue'].transform('count')
 		totalFeatures['methcount'] = totalFeatures.groupby(['methgroupby','Tissue','boundary'])['methgroupby'].transform('sum')
-		outFeatures = totalFeatures[['chr','id','directionality','methlocation','percentage','cytosine','methcount','boundary','Tissue']]
+		outFeatures = totalFeatures[['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']]
 	else:
 		outFeatures = btFeatures
 		print 'There are no features with "-" directionality, will use the original unsorted set for the analysis'
@@ -287,6 +293,8 @@ def modify_negative_directionality_elements(btFeatures):
 # get the total cpg in a column of strings
 def collect_total_avail_cpg_in_column(btFeatures,column):
 	btFeatures['cpgcount'] = btFeatures.apply(lambda row: float(row[column].count("CG")),axis=1)
+# 	btFeatures['cgcount'] = btFeatures.apply(lambda row: (row[column].count("G")+row[column].count("C")),axis=1)
+# 	btFeatures['cgcount'].sum()
 	return btFeatures['cpgcount'].sum()
 
 # collect the values for up/down/rev up/rev down stream total cpg counts
@@ -326,17 +334,15 @@ def run_whole_analysis_for_boundaries(pdfeatures,label):
 
 # remove duplicates counts by groupby params from percentage cpg methylation
 def group_data_frame_by_cpgmethylation(pdfeatures):
-	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)# 'organization'
-	# incase interested in other aspects 'cytosine','percentage', and 'methlocation' features could be preserved as well
+	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)
 	methdup = methsort.drop_duplicates(['methcount','Tissue','group'],keep='last')
 	return methdup
 
-# remove duplicates counts by groupby params from methylation strand
-def group_data_frame_by_strand(pdfeatures):
-	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)# 'organization'
-	# incase interested in other aspects 'percentage', and 'methlocation' features could be preserved as well
-	methsort['cytosinecount'] = pdfeatures.groupby(['group','boundary','Tissue','cytosine'])['cytosine'].transform('count')
-	methdup = methsort.drop_duplicates(['methcount','Tissue','group','cytosine','cytosinecount'],keep='last')
+# remove duplicate counts by groupby params
+def group_data_frame_by_column(pdfeatures,groupbycol,countcol):
+	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue'],ascending=True)
+	methsort[countcol] = pdfeatures.groupby(['group','boundary','Tissue',groupbycol])[groupbycol].transform('count')
+	methdup = methsort.drop_duplicates(['group','boundary','Tissue',groupbycol,countcol],keep='last')
 	return methdup
 
 # separate the elements and the random regions
@@ -344,6 +350,25 @@ def seperate_elements_and_random(pdfeatures):
 	element = pdfeatures[pdfeatures['group']=='element']
 	random  = pdfeatures[pdfeatures['group']!='element']
 	return element,random
+
+# perform barplot for each set
+def plot_params(removedups,xval,yval,hval,pp,label):
+	element,random = seperate_elements_and_random(removedups)
+	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
+	gs.update(hspace=.8)
+	ax0 = plt.subplot(gs[0,:])
+	ax1 = plt.subplot(gs[1,:])
+	sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
+	sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
+	ax0.set_title("UCEs")
+	ax1.set_title("Random Regions")
+	subplots = [ax0,ax1]
+	for plot in subplots:
+		plot.tick_params(axis='both',which='major',labelsize=16)
+		plot.set_ylabel(label,size=16)
+		plot.set_xlabel("Tissue",fontsize=16)
+	sns.despine()
+	plt.savefig(pp,format='pdf')
 
 # Make graphs for fangs
 def graph_boundary_methylation(pdfeatures,filelabel):
@@ -359,43 +384,32 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	plt.suptitle(info,fontsize=16)
 	surroundingfang = periphery*2
 	sns.set_palette("Blues")
-	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
-	gs.update(hspace=.8)
-	
-	# graph number cpgs methylated
+	# groupby and count different params
+	print sorted.head()
 	removedupcpgper = group_data_frame_by_cpgmethylation(sorted)
-	elementcpgper,randomcpgper = seperate_elements_and_random(removedupcpgper)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
-	sns.barplot(data=elementcpgper,x='Tissue',y='methcount',hue='boundary',ax=ax0)# 'percpgmeth'
-	sns.barplot(data=randomcpgper,x='Tissue',y='methcount',hue='boundary',ax=ax1)# 'percpgmeth'
-	ax0.set_title("UCEs")
-	ax1.set_title("Random Regions")
-	plt.savefig(pp, format='pdf')
-	
+	print removedupcpgper.head()
+# 	removedupcpgper = group_data_frame_by_column(sorted)
+	removedupstrand = group_data_frame_by_column(sorted,'strand','strandcount')
+	removedupdir = group_data_frame_by_column(sorted,'directionality','dircount')
+	removeduploc = group_data_frame_by_column(sorted,'methlocation','loccount')
+	removedupid = group_data_frame_by_column(sorted,'id','idcount')
+	plot_params(removedupcpgper,'Tissue','percpgmeth','boundary',pp,'% CpGs Methylated')
+	plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated')
+	plot_params(removedupcpgper,'Tissue','methcount','strand',pp,'Count CpGs Methylated')
+	plot_params(removedupcpgper,'Tissue','methcount','directionality',pp,'Count CpGs Methylated')
 	# graph strand cpgs methylated
-	removedupstrand = group_data_frame_by_strand(sorted)
-	elementstrand,randomstrand = seperate_elements_and_random(removedupstrand)
-	ax2 = plt.subplot(gs[0,:])
-	ax3 = plt.subplot(gs[1,:])
-	sns.barplot(data=elementstrand,x='Tissue',y='cytosinecount',hue='boundary',ax=ax2)# 'percpgmeth'
-	sns.barplot(data=randomstrand,x='Tissue',y='cytosinecount',hue='boundary',ax=ax3)# 'percpgmeth'
-	ax2.set_title("UCEs")
-	ax3.set_title("Random Regions")
-	
-	# location
-	
-	# percentage
-	
-	# percentage cpg methylation
-	
-	subplots = [ax0,ax1,ax3,ax4]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel('% CpGs Methylated',size=16)
-		plot.set_xlabel("Tissue",fontsize=16)
-	sns.despine()
-	pp.savefig()
+	plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand')
+	plot_params(removedupstrand,'Tissue','strandcount','directionality',pp,'Count Methylation Strand')
+	# graph percentage
+	plot_params(sorted,'Tissue','percentage','boundary',pp,'Count % Methylation')
+	plot_params(sorted,'Tissue','percentage','strand',pp,'Count % Methylation')
+	plot_params(sorted,'Tissue','percentage','directionality',pp,'Count % Methylation')
+	# graph location
+# 	plot_params(removeduploc,'Tissue','loccount','methlocation',pp,'Count Methylation Location')
+	# graph directionality
+	plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality')
+	# graph id
+# 	plot_params(removedupid,'Tissue','idcount','id',pp,'Count UCE ID Methylated')
 	pp.close()
 
 # run the whole series of steps through to graphing
