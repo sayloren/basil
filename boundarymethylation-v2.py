@@ -161,9 +161,7 @@ def collect_element_coordinates(fileName):
 
 # Do the comparison between boundaries to get + - or =
 def calculate_nucleotides_at(element,size):
-	start = element[:size]
-	end = element[-size:]
-	perSize = []
+	start,end,perSize = element[:size],element[-size:],[]
 	perSize.append(eval('100*float(start.count("A") + start.count("a") + start.count("T") + start.count("t"))/len(start)'))
 	perSize.append(eval('100*float(end.count("A") + end.count("a") + end.count("T") + end.count("t"))/len(end)'))
 	return perSize
@@ -205,7 +203,7 @@ def threshold_methylation_data(methFeatures,methName):
 	pdmethFeatures = convert_bedtool_to_panda(methFeatures)
 	pdmethThresh = (pdmethFeatures[(pdmethFeatures.loc[:,3] >= methCovThresh) & (pdmethFeatures.loc[:,4] >= methPerThresh)])
 	btmethThresh = convert_panda_to_bed_format(pdmethThresh)
-	print 'methylation coverage is being thresholded at {0} and percentage at {1}'.format(methCovThresh, methPerThresh)
+	print 'methylation coverage is being thresholded at {0} and percentage at {1}'.format(methCovThresh,methPerThresh)
 	initiallength = len(pdmethFeatures.index)
 	checklength = initiallength - len(pdmethThresh.index)
 	print 'there were {0} out of {1} total removed by thresholding {2}'.format(checklength,initiallength,methName)
@@ -332,20 +330,20 @@ def group_data_frame_by_column(pdfeatures,groupbycol,countcol):
 	return methdup
 
 # separate the elements and the random regions
-def seperate_elements_and_random(pdfeatures):
-	element = pdfeatures[pdfeatures['group']=='element']
-	random  = pdfeatures[pdfeatures['group']!='element']
+def seperate_elements_and_random(pdfeatures,column,value):
+	element = pdfeatures[pdfeatures[column]==value]
+	random  = pdfeatures[pdfeatures[column]!=value]
 	return element,random
 
 # perform barplot for each set
-def plot_params(removedups,xval,yval,hval,pp,label):
-	element,random = seperate_elements_and_random(removedups)
+def boxplot_params(removedups,yval,hval,pp,label):
+	element,random = seperate_elements_and_random(removedups,'group','element')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:])
-	sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
-	sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
+	sns.barplot(data=element,x='Tissue',y=yval,hue=hval,ax=ax0)
+	sns.barplot(data=random,x='Tissue',y=yval,hue=hval,ax=ax1)
 	ax0.set_title("UCEs")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
@@ -376,25 +374,30 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removedupdir = group_data_frame_by_column(sorted,'directionality','dircount')
 	removeduploc = group_data_frame_by_column(sorted,'methlocation','loccount')
 	removedupid = group_data_frame_by_column(sorted,'id','idcount')
+	removedupavailcg = group_data_frame_by_column(sorted,'createdcpg','createdcpgtest')
 	# graph cpgs methylated
-	plot_params(removedupcpgper,'Tissue','percpgmeth','boundary',pp,'% CpGs Methylated')
-	plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated')
-	plot_params(removedupcpgper,'Tissue','methcount','strand',pp,'Count CpGs Methylated')
-	plot_params(removedupcpgper,'Tissue','methcount','directionality',pp,'Count CpGs Methylated')
+# 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
+	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
+	boxplot_params(removedupcpgper,'methcount','strand',pp,'Count CpGs Methylated')
+	boxplot_params(removedupcpgper,'methcount','directionality',pp,'Count CpGs Methylated')
 	# graph strand cpgs methylated
-	plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand')
-	plot_params(removedupstrand,'Tissue','strandcount','directionality',pp,'Count Methylation Strand')
+# 	boxplot_params(removedupstrand,'strandcount','boundary',pp,'Count Methylation Strand')
+	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
+# 	boxplot_params(removedupstrand,'strandcount','directionality',pp,'Count Methylation Strand')
 	# graph percentage
-	plot_params(sorted,'Tissue','percentage','boundary',pp,'Count % Methylation')
-	plot_params(sorted,'Tissue','percentage','strand',pp,'Count % Methylation')
-	plot_params(sorted,'Tissue','percentage','directionality',pp,'Count % Methylation')
-	# graph location
-# 	plot_params(removeduploc,'Tissue','loccount','methlocation',pp,'Count Methylation Location')
+	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
+	boxplot_params(sorted,'percentage','strand',pp,'Count % Methylation')
+	boxplot_params(sorted,'percentage','directionality',pp,'Count % Methylation')
 	# graph directionality
-	plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality')
+# 	boxplot_params(removedupdir,'dircount','boundary',pp,'Count Directionality')
+# 	boxplot_params(removedupdir,'dircount','strand',pp,'Count Directionality')
+	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
 	# graph id
-# 	plot_params(removedupid,'Tissue','idcount','id',pp,'Count UCE ID Methylated')
-	# graph avail c and g to make cpg
+	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
+	# graph location
+	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
+	# graph avail c and g to cpg
+	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
 	pp.close()
 
 # run the whole series of steps through to graphing
@@ -410,6 +413,7 @@ def run_whole_script_for_group(pdfeatures,rFiles,label):
 		collect.append(ranreverse)
 	concat = pd.concat(collect)
 	concat['percpgmeth'] = (concat['methcount']/concat['cpgsum'])*100.0
+	concat['createdcpg'] = (concat['cpgsum']/concat['cgsum'])*100.0
 	concat.reset_index(drop=True,inplace=True)
 	graph_boundary_methylation(concat,'{0}'.format(label))
 
