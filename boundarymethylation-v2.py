@@ -293,25 +293,24 @@ def modify_negative_directionality_elements(btFeatures):
 # get the total cpg in a column of strings
 def collect_total_avail_cpg_in_column(btFeatures,column):
 	btFeatures['cpgcount'] = btFeatures.apply(lambda row: float(row[column].count("CG")),axis=1)
-# 	btFeatures['cgcount'] = btFeatures.apply(lambda row: (row[column].count("G")+row[column].count("C")),axis=1)
-# 	btFeatures['cgcount'].sum()
-	return btFeatures['cpgcount'].sum()
+	btFeatures['cgcount'] = btFeatures.apply(lambda row: (row[column].count("G")+row[column].count("C")),axis=1)
+	return btFeatures['cpgcount'].sum(),btFeatures['cgcount'].sum()
 
 # collect the values for up/down/rev up/rev down stream total cpg counts
 def collect_total_avail_cpg_values(btFeatures):
-	upcpgcount = collect_total_avail_cpg_in_column(btFeatures,'upstreamsequence')
-	downcpgcount = collect_total_avail_cpg_in_column(btFeatures,'downstreamsequence')
+	upcpg,upcg = collect_total_avail_cpg_in_column(btFeatures,'upstreamsequence')
+	downcpg,downcg = collect_total_avail_cpg_in_column(btFeatures,'downstreamsequence')
 	negFeatures = btFeatures.loc[btFeatures['directionality']=='-']
 	if not negFeatures.empty:
 		nonFeatures = btFeatures.loc[btFeatures['directionality']!='-']
 		newnegFeatures = negFeatures.rename(columns={'upstreamsequence':'downstreamsequence','downstreamsequence':'upstreamsequence'})
 		revFeatures = pd.concat([newnegFeatures,nonFeatures])
-		revupcpgcount = collect_total_avail_cpg_in_column(revFeatures,'upstreamsequence')
-		revdowncpgcount = collect_total_avail_cpg_in_column(revFeatures,'downstreamsequence')
+		revupcpg,revupcg = collect_total_avail_cpg_in_column(revFeatures,'upstreamsequence')
+		revdowncpg,revdowncg = collect_total_avail_cpg_in_column(revFeatures,'downstreamsequence')
 	else:
-		revupcpgcount,revdowncpgcount=upcpgcount,downcpgcount
+		revupcpg,revdowncpg,revupcg,revdowncg=upcpg,downcpg,upcg,downcg
 		print 'There are no features with "-" directionality'
-	return upcpgcount,downcpgcount,revupcpgcount,revdowncpgcount
+	return upcpg,downcpg,revupcpg,revdowncpg,upcg,downcg,revupcg,revdowncg
 
 # make the original input data frame
 def collect_input_data_frame(file):
@@ -321,22 +320,18 @@ def collect_input_data_frame(file):
 
 # run the whole series of steps to make the data frame for each set of elements to plot
 def run_whole_analysis_for_boundaries(pdfeatures,label):
-	upcpg,downcpg,revupcpg,revdowncpg = collect_total_avail_cpg_values(pdfeatures)
+	upcpg,downcpg,revupcpg,revdowncpg,upcg,downcg,revupcg,revdowncg = collect_total_avail_cpg_values(pdfeatures)
 	allstream = collect_methylation_data_by_element(pdfeatures)
 	allstream['group'] = label
 	allstream['organization'] = 'unsorted'
 	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
+	allstream['cgsum'] = np.where(allstream['boundary'] == 'up stream',upcg,downcg)
 	allreverse = modify_negative_directionality_elements(allstream)
 	allreverse['group'] = label
 	allreverse['organization'] = 'rcsorted'
 	allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
+	allstream['cgsum'] = np.where(allstream['boundary'] == 'up stream',revupcg,revdowncg)
 	return allstream,allreverse
-
-# remove duplicates counts by groupby params from percentage cpg methylation
-def group_data_frame_by_cpgmethylation(pdfeatures):
-	methsort = pdfeatures.sort_values(by=['group','boundary','Tissue','methcount'],ascending=True)
-	methdup = methsort.drop_duplicates(['methcount','Tissue','group'],keep='last')
-	return methdup
 
 # remove duplicate counts by groupby params
 def group_data_frame_by_column(pdfeatures,groupbycol,countcol):
@@ -385,14 +380,12 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	surroundingfang = periphery*2
 	sns.set_palette("Blues")
 	# groupby and count different params
-	print sorted.head()
-	removedupcpgper = group_data_frame_by_cpgmethylation(sorted)
-	print removedupcpgper.head()
-# 	removedupcpgper = group_data_frame_by_column(sorted)
+	removedupcpgper = group_data_frame_by_column(sorted,'methcount','methcounttest')
 	removedupstrand = group_data_frame_by_column(sorted,'strand','strandcount')
 	removedupdir = group_data_frame_by_column(sorted,'directionality','dircount')
 	removeduploc = group_data_frame_by_column(sorted,'methlocation','loccount')
 	removedupid = group_data_frame_by_column(sorted,'id','idcount')
+	# graph cpgs methylated
 	plot_params(removedupcpgper,'Tissue','percpgmeth','boundary',pp,'% CpGs Methylated')
 	plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated')
 	plot_params(removedupcpgper,'Tissue','methcount','strand',pp,'Count CpGs Methylated')
