@@ -267,7 +267,7 @@ def negative_directionality_columns_to_modify(negFeatures):
 # Separate on plus and minus orientation, rcsort and return methylation
 def modify_negative_directionality_elements(btFeatures):
 	negFeatures = btFeatures.loc[btFeatures['directionality']=='-']
-	if not negFeatures.empty:
+	if not negFeatures['directionality'].isnull().all():#.empty:
 		nonFeatures = btFeatures.loc[btFeatures['directionality']!='-']
 		newnegFeatures = negative_directionality_columns_to_modify(negFeatures)
 		totalFeatures = pd.concat([newnegFeatures,nonFeatures])
@@ -290,7 +290,7 @@ def collect_total_avail_cpg_values(btFeatures):
 	upcpg,upcg = collect_total_avail_cpg_in_column(btFeatures,'upstreamsequence')
 	downcpg,downcg = collect_total_avail_cpg_in_column(btFeatures,'downstreamsequence')
 	negFeatures = btFeatures.loc[btFeatures['directionality']=='-']
-	if not negFeatures.empty:
+	if not negFeatures['directionality'].isnull().all():#.empty:
 		nonFeatures = btFeatures.loc[btFeatures['directionality']!='-']
 		newnegFeatures = negFeatures.rename(columns={'upstreamsequence':'downstreamsequence','downstreamsequence':'upstreamsequence'})
 		revFeatures = pd.concat([newnegFeatures,nonFeatures])
