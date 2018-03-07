@@ -212,7 +212,7 @@ def threshold_methylation_data(methFeatures,methName):
 	return btmethThresh
 
 # Intersect regions from the methylation data with element regions
-def intersect_methylation_data_by_element(btFeatures,meFeature,meName,eStart,eEnd,sBound,eBound):
+def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,sBound,eBound,column,boundary):
 	initiallength = len(meFeature)
 	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id']].values.astype(str).tolist(),wb=True,wa=True)
 	checklength = len(intersectboundary)
@@ -223,27 +223,20 @@ def intersect_methylation_data_by_element(btFeatures,meFeature,meName,eStart,eEn
 		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr',sBound,eBound,'id','int']
 		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmeth['methlocation'] = pdmeth['int'].astype(int)+(pdmeth['mstart'].astype(int)-pdmeth[sBound].astype(int))
-		outmethylation = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','strand']]
-		outmethylation.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','strand']
-		sortoutmethylation = outmethylation.sort_values(['methlocation'],ascending=True)
-	else:
-		sortoutmethylation = None
-	return sortoutmethylation
-
-# Combine directionality and id information to the methylation data, format
-def make_methylation_data_frame_and_verify_cytosine(methdf,name,features,column,boundary):
-	if methdf is not None:
-		methdf['Tissue'] = name.replace('.bed','')
-		subfeatures = features[['id','directionality',column]]
-		merge = pd.merge(methdf,subfeatures,how='left',on='id')
+		outmeth = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','strand']]
+		outmeth.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','strand']
+		outmeth['Tissue'] = meName.replace('.bed','')
+		subfeatures = btFeatures[['id','directionality',column]]
+		merge = pd.merge(outmeth,subfeatures,how='left',on='id')
 		merge['methcount'] = len(merge.index)
 		merge['boundary'] = boundary
-		subMeth = merge[['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']]
-		subMeth.columns = ['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']
+		sortoutmeth = merge[['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']]
+		sortoutmeth.columns = ['chr','id','directionality','methlocation','percentage','strand','methcount','boundary','Tissue']
 	else:
-		subMeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','directionality','methlocation','percentage','strand','methcount','boundary'])
-		subMeth['Tissue'] = name.replace('.bed','')
-	return subMeth
+		sortoutmeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','directionality','methlocation','percentage','strand','methcount'])
+		sortoutmeth['boundary'] = boundary
+		sortoutmeth['Tissue'] = meName.replace('.bed','')
+	return sortoutmeth
 
 # Run the analysis to extract methylation properties
 def collect_methylation_data_by_element(pdfeatures):
@@ -251,12 +244,10 @@ def collect_methylation_data_by_element(pdfeatures):
 	for methname in mFiles:
 		mfeatures=get_bedtools_features(methname)
 		pdthresh=threshold_methylation_data(mfeatures,methname)
-		uintersect=intersect_methylation_data_by_element(pdfeatures,pdthresh,methname,'startup','startdown','sBoundary','sEdge')
-		dintersect=intersect_methylation_data_by_element(pdfeatures,pdthresh,methname,'endup','enddown','eEdge','eBoundary')
-		umerge=make_methylation_data_frame_and_verify_cytosine(uintersect,methname,pdfeatures,'upstreamsequence','up stream')
-		dmerge=make_methylation_data_frame_and_verify_cytosine(dintersect,methname,pdfeatures,'downstreamsequence','down stream')
-		capture.append(umerge)
-		capture.append(dmerge)
+		uintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'startup','startdown','sBoundary','sEdge','upstreamsequence','up stream')
+		dintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'endup','enddown','eEdge','eBoundary','downstreamsequence','down stream')
+		capture.append(uintersect)
+		capture.append(dintersect)
 	totalconcat = pd.concat(capture)
 	totalconcat.reset_index(drop=True,inplace=True)
 	return totalconcat
@@ -403,6 +394,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality')
 	# graph id
 # 	plot_params(removedupid,'Tissue','idcount','id',pp,'Count UCE ID Methylated')
+	# graph avail c and g to make cpg
 	pp.close()
 
 # run the whole series of steps through to graphing
