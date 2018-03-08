@@ -220,6 +220,7 @@ def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,sBound,eB
 		pdmeth['int']=0
 		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr',sBound,eBound,'id','int']
 		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
+		pdmeth['strand'] = pdmeth['strand'].str.upper()
 		pdmeth['methlocation'] = pdmeth['int'].astype(int)+(pdmeth['mstart'].astype(int)-pdmeth[sBound].astype(int))
 		outmeth = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','strand']]
 		outmeth.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','strand']
@@ -393,7 +394,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 # 	boxplot_params(removedupdir,'dircount','strand',pp,'Count Directionality')
 	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
 	# graph id
-	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
+# 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
 	# graph location
 	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
 	# graph avail c and g to cpg
