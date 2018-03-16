@@ -423,10 +423,10 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	if any([rFiles,randomassignments]):
 		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
 		revranCGgroup,revranCGmean,revranCGstd = collect_linear_two_nucleotides(denseRandomRC,names,'CG')
-		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax2.plot(fillX,revranCGmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax3.plot(fillX,revranCGstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax2.plot(fillX,revranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax3.plot(fillX,revranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
 		# If want to plot each line separately
 # 		for dfNuc in collectRandom:
 # 			ranATgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
@@ -500,8 +500,8 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
 	if any([rFiles,randomassignments]):
 		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
-		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
 		# If want to plot each line separately
 # 		for dfNuc in Random:
 # 			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
