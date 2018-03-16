@@ -412,6 +412,7 @@ def run_whole_script_for_group(pdfeatures,rFiles,label):
 		ranstream,ranreverse = run_whole_analysis_for_boundaries(randomFeatures,'random{0}'.format(randomFile))
 		collect.append(ranstream)
 		collect.append(ranreverse)
+		print 'collected data frame for {0}'.format(randomFile)
 	concat = pd.concat(collect)
 	concat['percpgmeth'] = (concat['methcount']/concat['cpgsum'])*100.0
 	concat['createdcpg'] = (concat['cpgsum']/concat['cgsum'])*100.0
@@ -422,6 +423,7 @@ def main():
 	args = get_args()
 	set_global_variables(args)
 	directionFeatures = collect_input_data_frame(eFiles)
+	print 'collected data frame for {0}'.format(eFiles)
 	run_whole_script_for_group(directionFeatures,rFiles,'All')
 	if labelcolumn:
 		typeList = directionFeatures['type'].unique()
