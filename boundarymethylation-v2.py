@@ -48,7 +48,7 @@ def get_args():
 	parser = argparse.ArgumentParser(description="Description")
 	parser.add_argument("efile",type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast")
-	parser.add_argument("-m","--methylationfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles")
+	parser.add_argument("-m","--methylationfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles, where coverage is in the 4th column and percentage in the 5th")
 
 	parser.add_argument("-l", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
 	parser.add_argument("-d", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
@@ -377,11 +377,11 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removeduppercentage = group_data_frame_by_column(sorted,'percentage','percount')
 	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
 	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
-	boxplot_params(removeduppercentage,'percount','percentage',pp,'Count Methylation Percentage')
 	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
+	boxplot_params(removeduppercentage,'percount','percentage',pp,'Count % Methylation')
 	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
 	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
-# Removed
+# 	Not used
 	# graph cpgs methylated
 # 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
 # 	boxplot_params(removedupcpgper,'methcount','strand',pp,'Count CpGs Methylated')
