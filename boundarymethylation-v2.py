@@ -374,31 +374,33 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removedupstrand = group_data_frame_by_column(sorted,'strand','strandcount')
 	removedupdir = group_data_frame_by_column(sorted,'directionality','dircount')
 	removeduploc = group_data_frame_by_column(sorted,'methlocation','loccount')
-	removedupid = group_data_frame_by_column(sorted,'id','idcount')
-	removedupavailcg = group_data_frame_by_column(sorted,'createdcpg','createdcpgtest')
+	removeduppercentage = group_data_frame_by_column(sorted,'percentage','percount')
+	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
+	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
+	boxplot_params(removeduppercentage,'percount','percentage',pp,'Count Methylation Percentage')
+	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
+	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
+# Removed
 	# graph cpgs methylated
 # 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
-	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
-	boxplot_params(removedupcpgper,'methcount','strand',pp,'Count CpGs Methylated')
-	boxplot_params(removedupcpgper,'methcount','directionality',pp,'Count CpGs Methylated')
+# 	boxplot_params(removedupcpgper,'methcount','strand',pp,'Count CpGs Methylated')
+# 	boxplot_params(removedupcpgper,'methcount','directionality',pp,'Count CpGs Methylated')
 	# graph strand cpgs methylated
 # 	boxplot_params(removedupstrand,'strandcount','boundary',pp,'Count Methylation Strand')
-	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
 # 	boxplot_params(removedupstrand,'strandcount','directionality',pp,'Count Methylation Strand')
 	# graph percentage
-	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
-	boxplot_params(sorted,'percentage','strand',pp,'Count % Methylation')
-	boxplot_params(sorted,'percentage','directionality',pp,'Count % Methylation')
+# 	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
+# 	boxplot_params(sorted,'percentage','strand',pp,'Count % Methylation')
+# 	boxplot_params(sorted,'percentage','directionality',pp,'Count % Methylation')
 	# graph directionality
 # 	boxplot_params(removedupdir,'dircount','boundary',pp,'Count Directionality')
 # 	boxplot_params(removedupdir,'dircount','strand',pp,'Count Directionality')
-	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
 	# graph id
+# 	removedupid = group_data_frame_by_column(sorted,'id','idcount')
 # 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
-	# graph location
-	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
 	# graph avail c and g to cpg
-	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
+# 	removedupavailcg = group_data_frame_by_column(sorted,'createdcpg','createdcpgtest')
+# 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
 	pp.close()
 
 # run the whole series of steps through to graphing

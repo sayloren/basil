@@ -168,6 +168,14 @@ def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures = pd.read_table(btFeatures.fn, header=None)
 	midFeatures['middle'] = midFeatures.loc[:,1:2].mean(axis=1).astype(int)
 	midFeatures['size'] = midFeatures.loc[:,2].astype(int)-midFeatures.loc[:,1].astype(int)
+	if directionalitycolumn:
+		midFeatures['directionality'] = midFeatures.loc[:,directionalitycolumn]
+	if labelcolumn:
+		midFeatures['type'] = midFeatures.loc[:,labelcolumn]
+	if idcolumn:
+		midFeatures['id'] = midFeatures.loc[:,idcolumn]
+	else:
+		midFeatures.insert(len(midFeatures.columns),'id',range(0,0+len(midFeatures)))
 	midFeatures.columns.values[0]='chr'
 	midFeatures.columns.values[1]='start'
 	midFeatures.columns.values[2]='end'
@@ -189,14 +197,6 @@ def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures['sBoundary'] = midFeatures['start'].astype(int) - flankSize
 	midFeatures['eBoundary'] = midFeatures['end'].astype(int) + flankSize
 	midFeatures=midFeatures.drop(['middle'],axis=1)
-	if directionalitycolumn:
-		midFeatures['directionality'] = midFeatures.loc[:,directionalitycolumn]
-	if labelcolumn:
-		midFeatures['type'] = midFeatures.loc[:,labelcolumn]
-	if idcolumn:
-		midFeatures['id'] = midFeatures.loc[:,idcolumn]
-	else:
-		midFeatures.insert(len(midFeatures.columns),'id',range(0,0+len(midFeatures)))
 	print 'collected the coordinates to create the sequence strings'
 	return midFeatures
 
@@ -436,10 +436,10 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 			columns=['statistic','pvalue'],
 			index=['wsr-total','wsr-total-rc','wsr-element','wsr-element-rc','wsr-flanks','wsr-flanks-rc'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax2.plot(fillX,revranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax3.plot(fillX,revranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax2.plot(fillX,revranATmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax3.plot(fillX,revranATstd,linewidth=plotlinesize,label='Random',color='#c5969d')
 
 		# If want to plot each line separately
 # 		for dfNuc in collectRandom:
@@ -478,10 +478,10 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 
 	subplots = [ax0,ax1,ax2,ax3]
 	for plot in subplots:
-		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#c5969d')
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
@@ -522,8 +522,8 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 			columns=['statistic','pvalue'],
 			index=['wsr-total','wsr-element','wsr-flanks'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
-		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#bed0f4')
+		ax0.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax1.plot(fillX,ranATstd,linewidth=plotlinesize,label='Random',color='#c5969d')
 		# If want to plot each line seperately
 # 		for dfNuc in Random:
 # 			ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(dfNuc,names,'A','T')
@@ -542,10 +542,10 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 
 	subplots = [ax0,ax1]
 	for plot in subplots:
-		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#c5969d')
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
@@ -591,7 +591,7 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	ax0.set_xlabel('Position (bp)',size=16)
 # 	ax0.set_title('Mean AT Content for UCEs, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
-	ax1.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#bed0f4')
+	ax1.plot(fillX,ranATmean,linewidth=plotlinesize,label='Random',color='#c5969d')
 	ax1.set_xlabel('Position (bp)',size=16)
 	ax1.set_ylabel('% AT Content',size=16)
 # 	ax1.set_title('Mean AT Content for {0} times Randomly Sorted UCEs'.format(randomassignments),size=16)
@@ -599,10 +599,10 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 
 	subplots = [ax0,ax1]
 	for plot in subplots:
-		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#d7b7bc')
-		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#d7b7bc')
+		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#c5969d')
+		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#c5969d')
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.hlines(y=62,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
@@ -712,7 +712,8 @@ def main():
 				denseRandomtypeRC = sliding_window_df_to_collect_all_random(spreadRandomtypeRC,typeNames)
 				graph_element_line_means_with_rc_sorted(typeWindow,typeNames,typeWindowRC,'{0}_rc_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,spreadRandomtypeRC,denseRandomtype,denseRandomtypeRC)
 			else:
-				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
+# 				graph_element_line_means(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
+				graph_element_line_means_random_below(typeWindow,typeNames,'{0}_{1}_{2}'.format(type,paramlabels,lengthrandom),spreadRandomtype,denseRandomtype)
 	
 	# If all elements are to run together
 	else:
@@ -750,7 +751,8 @@ def main():
 			denseRandomRC = sliding_window_df_to_collect_all_random(spreadRandomRC,allNames)
 			graph_element_line_means_with_rc_sorted(allWindow,allNames,revWindow,'all_rc_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,spreadRandomRC,denseRandom,denseRandomRC)
 		else:
-			graph_element_line_means(allWindow,allNames,'all_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
+# 			graph_element_line_means(allWindow,allNames,'all_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
+			graph_element_line_means_random_below(allWindow,allNames,'all_{0}_{1}'.format(paramlabels,lengthrandom),spreadRandom,denseRandom)
 	
 	endtime = time.time()
 	print 'total time elapsed is {0}'.format(endtime-starttime)
