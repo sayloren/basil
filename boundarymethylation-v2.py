@@ -378,6 +378,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
 	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
 	boxplot_params(removeduppercentage,'percount','percentage',pp,'Count Methylation Percentage')
+	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
 	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
 	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
 # Removed
@@ -389,7 +390,6 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 # 	boxplot_params(removedupstrand,'strandcount','boundary',pp,'Count Methylation Strand')
 # 	boxplot_params(removedupstrand,'strandcount','directionality',pp,'Count Methylation Strand')
 	# graph percentage
-# 	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
 # 	boxplot_params(sorted,'percentage','strand',pp,'Count % Methylation')
 # 	boxplot_params(sorted,'percentage','directionality',pp,'Count % Methylation')
 	# graph directionality
