@@ -210,18 +210,17 @@ def threshold_methylation_data(methFeatures,methName):
 	return btmethThresh
 
 # Intersect regions from the methylation data with element regions
-def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,sBound,eBound,column,boundary):
+def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,sBound,eBound,column,boundary,subtractcolumn):
 	initiallength = len(meFeature)
-	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id']].values.astype(str).tolist(),wb=True,wa=True)
+	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id',subtractcolumn]].values.astype(str).tolist(),wb=True,wa=True)
 	checklength = len(intersectboundary)
 	print 'there were {0} intersections out of {1} in {2}'.format(checklength,initiallength,meName)
 	if len(intersectboundary) != 0:
 		pdmeth=convert_bedtool_to_panda(intersectboundary)
-		pdmeth['int']=0
-		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr',sBound,eBound,'id','int']
+		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr',sBound,eBound,'id','subtract']
 		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmeth['strand'] = pdmeth['strand'].str.upper()
-		pdmeth['methlocation'] = pdmeth['int'].astype(int)+(pdmeth['mstart'].astype(int)-pdmeth[sBound].astype(int))
+		pdmeth['methlocation'] = pdmeth['subtract'].astype(int)-pdmeth['mstart'].astype(int)
 		outmeth = pdmeth[['chr','mstart','mstop',sBound,eBound,'id','percentage','methlocation','strand']]
 		outmeth.columns = ['chr','mStart','mStop','eStart','eStop','id','percentage','methlocation','strand']
 		outmeth['Tissue'] = meName.replace('.bed','')
@@ -240,28 +239,36 @@ def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,sBound,eB
 # Run the analysis to extract methylation properties
 def collect_methylation_data_by_element(pdfeatures):
 	capture = []
-	for methname in mFiles:
+	for methname in mFiles: # collect those from same tissue cell type, divide by number samples
 		mfeatures=get_bedtools_features(methname)
 		pdthresh=threshold_methylation_data(mfeatures,methname)
-		uintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'startup','startdown','sBoundary','sEdge','upstreamsequence','up stream')
-		dintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'endup','enddown','eEdge','eBoundary','downstreamsequence','down stream')
+		uintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'startup','startdown','sBoundary','sEdge','upstreamsequence','up stream','start')
+		dintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'endup','enddown','eEdge','eBoundary','downstreamsequence','down stream','end')
+		dinvert=invert_location(dintersect)
 		capture.append(uintersect)
-		capture.append(dintersect)
+		capture.append(dinvert)
 	totalconcat = pd.concat(capture)
 	totalconcat.reset_index(drop=True,inplace=True)
 	return totalconcat
 
-# Reverse those column that need to be reversed in case of - directionality
-def negative_directionality_columns_to_modify(negFeatures):
-	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
-	originalRange = range(0,periphery*2)
+# invert methlocation column
+def invert_location(pdfeatures):
+	originalRange = range(-periphery,periphery+1)#range(0,periphery*2)
 	reverseRange = originalRange[::-1]
 	rangeDict = dict(zip(originalRange,reverseRange))
+	pdfeatures['newmethlocation'] = pdfeatures.loc[:,'methlocation'].map(rangeDict)
+	pdfeatures.drop(labels='methlocation',axis=1,inplace=True)
+	pdfeatures.rename(columns={'newmethlocation':'methlocation'},inplace=True)
+	return pdfeatures
+
+# Reverse those column that need to be reversed in case of - directionality
+def negative_directionality_columns_to_modify(negFeatures):
+	invFeatures = invert_location(negFeatures)
+	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
 	boundaryDict = {'up stream':'down stream','down stream':'up stream'}
-	negFeatures['newmethlocation'] = negFeatures.loc[:,'methlocation'].map(rangeDict)
-	negFeatures['newboundary'] = negFeatures.loc[:,'boundary'].map(boundaryDict)
-	negFeatures['newstrand'] = negFeatures.loc[:,'strand'].map(seqDict)
-	newnegFeatures = negFeatures[['chr','id','directionality','newmethlocation','percentage','newstrand','newboundary','Tissue','group']]
+	invFeatures['newboundary'] = invFeatures.loc[:,'boundary'].map(boundaryDict)
+	invFeatures['newstrand'] = invFeatures.loc[:,'strand'].map(seqDict)
+	newnegFeatures = invFeatures[['chr','id','directionality','methlocation','percentage','newstrand','newboundary','Tissue','group']]
 	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','strand','boundary','Tissue','group']
 	return newnegFeatures
 
@@ -336,22 +343,26 @@ def seperate_elements_and_random(pdfeatures,column,value):
 	random  = pdfeatures[pdfeatures[column]!=value]
 	return element,random
 
-# perform barplot for each set
-def boxplot_params(removedups,yval,hval,pp,label):
+# plot params
+def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:])
-	sns.barplot(data=element,x='Tissue',y=yval,hue=hval,ax=ax0)
-	sns.barplot(data=random,x='Tissue',y=yval,hue=hval,ax=ax1)
+	if whichplot == 'boxplot':
+		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
+		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
+	elif whichplot == 'lineplot':
+		sns.pointplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,scale=.75,capsize=.2,errwidth=.5,linewidth=.75,ci='sd')
+		sns.pointplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,scale=.75,capsize=.2,errwidth=.5,linewidth=.75,ci='sd')
 	ax0.set_title("UCEs")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
 	for plot in subplots:
 		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel(label,size=16)
-		plot.set_xlabel("Tissue",fontsize=16)
+		plot.set_ylabel(setylabel,size=16)
+		plot.set_xlabel(setxlabel,fontsize=16)
 	sns.despine()
 	plt.savefig(pp,format='pdf')
 
@@ -368,37 +379,22 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	surroundingfang = periphery*2
-	sns.set_palette("Blues")
-	# groupby and count different params
+	sns.set_palette("Blues",n_colors=3)
 	removedupcpgper = group_data_frame_by_column(sorted,'methcount','methcounttest')
 	removedupstrand = group_data_frame_by_column(sorted,'strand','strandcount')
 	removedupdir = group_data_frame_by_column(sorted,'directionality','dircount')
 	removeduploc = group_data_frame_by_column(sorted,'methlocation','loccount')
 	removeduppercentage = group_data_frame_by_column(sorted,'percentage','percount')
-	boxplot_params(removedupcpgper,'methcount','boundary',pp,'Count CpGs Methylated')
-	boxplot_params(removedupstrand,'strandcount','strand',pp,'Count Methylation Strand')
-	boxplot_params(sorted,'percentage','boundary',pp,'Count % Methylation')
-	boxplot_params(removeduppercentage,'percount','percentage',pp,'Count % Methylation')
-	boxplot_params(removedupdir,'dircount','directionality',pp,'Count Directionality')
-	boxplot_params(removeduploc,'methlocation','loccount',pp,'Count Methylation Location') # needs work
+	set_plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
+	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue','boxplot')
+	set_plot_params(sorted,'Tissue','percentage','boundary',pp,'Count % Methylation','Tissue','boxplot')
+	set_plot_params(removeduppercentage,'percount','percentage','Tissue',pp,'Count % Methylation','Percentage','lineplot')
+	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
+	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','lineplot')
 # 	Not used
-	# graph cpgs methylated
 # 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
-# 	boxplot_params(removedupcpgper,'methcount','strand',pp,'Count CpGs Methylated')
-# 	boxplot_params(removedupcpgper,'methcount','directionality',pp,'Count CpGs Methylated')
-	# graph strand cpgs methylated
-# 	boxplot_params(removedupstrand,'strandcount','boundary',pp,'Count Methylation Strand')
-# 	boxplot_params(removedupstrand,'strandcount','directionality',pp,'Count Methylation Strand')
-	# graph percentage
-# 	boxplot_params(sorted,'percentage','strand',pp,'Count % Methylation')
-# 	boxplot_params(sorted,'percentage','directionality',pp,'Count % Methylation')
-	# graph directionality
-# 	boxplot_params(removedupdir,'dircount','boundary',pp,'Count Directionality')
-# 	boxplot_params(removedupdir,'dircount','strand',pp,'Count Directionality')
-	# graph id
 # 	removedupid = group_data_frame_by_column(sorted,'id','idcount')
 # 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
-	# graph avail c and g to cpg
 # 	removedupavailcg = group_data_frame_by_column(sorted,'createdcpg','createdcpgtest')
 # 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
 	pp.close()
