@@ -342,7 +342,7 @@ def seperate_elements_and_random(pdfeatures,column,value):
 	return element,random
 
 # plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,xtickvalues,whichplot):
+def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
@@ -351,14 +351,17 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,xtickvalues
 	if whichplot == 'boxplot':
 		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
 		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
-	elif whichplot == 'lineplot':
-		sns.pointplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,scale=.75,capsize=.2,errwidth=.5,linewidth=.75,ci='sd')
-		sns.pointplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,scale=.75,capsize=.2,errwidth=.5,linewidth=.75,ci='sd')
-		ax0.xaxis.set_ticks(xtickvalues,minor=False)
-		ax1.xaxis.set_ticks(xtickvalues,minor=False)
 	else:
-		sns.distplot(element[xval],bins=xtickvalues,hist=False,ax=ax0)
-		sns.distplot(random[xval],bins=xtickvalues,hist=False,ax=ax1)
+		sns.set_palette("Blues",n_colors=len(element[hval].unique()))
+		for tissue in element[hval].unique():
+			tissueelement = element[element[hval]==tissue]
+			tissuerandom = random[random[hval]==tissue]
+			tissueelement.dropna(axis=0,inplace=True)
+			tissuerandom.dropna(axis=0,inplace=True)
+			sns.distplot(tissueelement[xval],ax=ax0,label=tissue)
+			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue)
+		ax0.legend()
+		ax1.legend
 	ax0.set_title("UCEs")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
@@ -378,6 +381,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 		pdfeatures['newTissue'] = pdfeatures['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
 		pdfeatures.drop(labels='Tissue',axis=1,inplace=True)
 		pdfeatures.rename(columns={'newTissue':'Tissue'},inplace=True)
+		print pdfeatures.head()
 	info = str(filelabel)
 	sns.set_style('ticks')
 	if reverseComplement:
@@ -401,12 +405,12 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removedupdir = group_data_frame_by_column(methsort,'directionality','dircount')
 	removeduploc = group_data_frame_by_column(methsort,'methlocation','loccount')
 	removeduppercentage = group_data_frame_by_column(methsort,'percentage','percount')
-	set_plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated','Tissue',methfiles,'boxplot')
-	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue',methfiles,'boxplot')
-	set_plot_params(methsort,'Tissue','percentage','boundary',pp,'Count % Methylation','Tissue',methfiles,'boxplot')
-	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage',range(0,100,10),'distplot')
-	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue',methfiles,'boxplot')
-	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary',range(-periphery,periphery+1),'distplot') 
+	set_plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
+	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue','boxplot')
+	set_plot_params(methsort,'Tissue','percentage','boundary',pp,'Count % Methylation','Tissue','boxplot')
+	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
+	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
+	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
 # 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
 # 	removedupid = group_data_frame_by_column(methsort,'id','idcount')
 # 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
