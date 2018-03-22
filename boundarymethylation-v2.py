@@ -352,16 +352,15 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
 		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
 	else:
-		sns.set_palette("Blues",n_colors=len(element[hval].unique()))
 		for tissue in element[hval].unique():
 			tissueelement = element[element[hval]==tissue]
 			tissuerandom = random[random[hval]==tissue]
 			tissueelement.dropna(axis=0,inplace=True)
 			tissuerandom.dropna(axis=0,inplace=True)
-			sns.distplot(tissueelement[xval],ax=ax0,label=tissue)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue)
+			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=10)
+			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=10)
 		ax0.legend()
-		ax1.legend
+		ax1.legend()
 	ax0.set_title("UCEs")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
@@ -376,14 +375,9 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 def graph_boundary_methylation(pdfeatures,filelabel):
 	methfiles = [(file.split("-")[0]) for file in mFiles]
 	methcount = Counter(methfiles)
-	print methcount
-	if combinesamples: # also have to divide by number of samples
-		pdfeatures['newTissue'] = pdfeatures['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
-		pdfeatures.drop(labels='Tissue',axis=1,inplace=True)
-		pdfeatures.rename(columns={'newTissue':'Tissue'},inplace=True)
-		print pdfeatures.head()
 	info = str(filelabel)
 	sns.set_style('ticks')
+	sns.set_palette("husl",n_colors=len(pdfeatures['Tissue'].unique()))
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
 		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
@@ -393,13 +387,17 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	surroundingfang = periphery*2
-	sns.set_palette("Blues",n_colors=3)
 	methsort = sorted.sort_values(by=['group','boundary','Tissue'],ascending=True)
 	methsort['methgroupby'] = methsort.groupby(['Tissue','methlocation','boundary','group','id'])['Tissue'].transform('count')
 	methsort['methcount'] = methsort.groupby(['group','boundary','Tissue','methgroupby'])['methgroupby'].transform('sum')
 	methsort['percpgmeth'] = (methsort['methcount']/methsort['cpgsum'])*100.0
 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 	methsort.reset_index(inplace=True,drop=True)
+	if combinesamples:
+		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
+		methsort.drop(labels='Tissue',axis=1,inplace=True)
+		methsort.rename(columns={'newTissue':'Tissue'},inplace=True)
+		print methsort.head()
 	removedupcpgper = methsort.drop_duplicates(['group','boundary','Tissue','methgroupby','methcount'],keep='last')
 	removedupstrand = group_data_frame_by_column(methsort,'strand','strandcount')
 	removedupdir = group_data_frame_by_column(methsort,'directionality','dircount')
@@ -408,8 +406,8 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	set_plot_params(removedupcpgper,'Tissue','methcount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
 	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue','boxplot')
 	set_plot_params(methsort,'Tissue','percentage','boundary',pp,'Count % Methylation','Tissue','boxplot')
-	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
 	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
+	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
 	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
 # 	boxplot_params(removedupcpgper,'percpgmeth','boundary',pp,'% CpGs Methylated')
 # 	removedupid = group_data_frame_by_column(methsort,'id','idcount')
