@@ -331,8 +331,7 @@ def run_whole_analysis_for_boundaries(pdfeatures,label):
 
 # count by feature for graphing
 def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
-	methsort = pdfeatures
-	methsort = sorted.sort_values(by=['Tissue','group',incol],ascending=True)
+	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
 	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])['Tissue'].transform('count')
 	methsort[outcol] = methsort.groupby(['group',incol,'Tissue','methgroupby'])['methgroupby'].transform('sum')
 	methsort.reset_index(inplace=True,drop=True)
@@ -392,11 +391,11 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	surroundingfang = periphery*2
-	removedupcpgper = group_and_count_data_frame_by_column(methsort,'boundary','boundarycount')
-	removedupstrand = group_and_count_data_frame_by_column(methsort,'strand','strandcount')
-	removedupdir = group_and_count_data_frame_by_column(methsort,'directionality','dircount')
-	removeduploc = group_and_count_data_frame_by_column(methsort,'methlocation','loccount')
-	removeduppercentage = group_and_count_data_frame_by_column(methsort,'percentage','percount')
+	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
+	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
+	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
+	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
+	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
 	set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
 	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue','boxplot')
 	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
