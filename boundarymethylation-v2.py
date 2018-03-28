@@ -58,11 +58,11 @@ def get_args():
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
 
-	parser.add_argument("-p","--periphery",type=int,default="10",help='number bp from your boundary you want to include in the analysis')
+	parser.add_argument("-p","--periphery",type=int,default="20",help='number bp from your boundary you want to include in the analysis')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 
-	parser.add_argument("-mp","--methylationthresholdpercentage",type=int, default="10",help='size to threshold percentage methylation data')
+	parser.add_argument("-mp","--methylationthresholdpercentage",type=int, default="1",help='size to threshold percentage methylation data')
 	parser.add_argument("-mc","--methylationthresholdcoverage",type=int,default="10",help='size to threshold uncapped coverage of methylation data to send to percentage methylation, field often uses 10')
 	parser.add_argument("-ms","--combinemethylationsamples",action='store_true',help='whether to combine those samples with the same tissue/cell type or leave as seperate')
 
@@ -332,11 +332,9 @@ def run_whole_analysis_for_boundaries(pdfeatures,label):
 # count by feature for graphing
 def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
 	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
-	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])['Tissue'].transform('count')
-	methsort[outcol] = methsort.groupby(['group',incol,'Tissue','methgroupby'])['methgroupby'].transform('sum')
-	methsort.reset_index(inplace=True,drop=True)
-	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby',outcol],keep='last')
-	removedups.drop(lables='methgroupby',axis=1,inplace=True)
+	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
+	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
+	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
 	return removedups
 
 # separate the elements and the random regions
@@ -390,18 +388,24 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
-	surroundingfang = periphery*2
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
+# 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
+# 	print removedupcpgper
 	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
+	valueDict = {'C':'+','G':'-'}
+	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(valueDict)
+# 	print removedupstrand
 	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
+# 	print removedupdir
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
+# 	print removeduploc
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
+# 	print removeduppercentage
 	set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
-	set_plot_params(removedupstrand,'Tissue','strandcount','strand',pp,'Count Methylation Strand','Tissue','boxplot')
+	set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Count Methylation Strand','Tissue','boxplot')
 	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
 	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
 	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
-# 	methsort['percpgmeth'] = (methsort['boundarycount']/methsort['cpgsum'])*100.0
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 # 	if combinesamples:
 # 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
@@ -411,7 +415,6 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 # 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
 # 	removedupavailcg = group_data_frame_by_column(methsort,'createdcpg','createdcpgtest')
 # 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
-# 	set_plot_params(methsort,'Tissue','percentage','boundary',pp,'Count % Methylation','Tissue','boxplot')
 	pp.close()
 
 # run the whole series of steps through to graphing
