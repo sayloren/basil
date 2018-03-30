@@ -437,11 +437,11 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
 		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = PdfPages('Statistic_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
+		pstat = 'Statistic_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
 	else:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
 		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = PdfPages('Statistic_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
+		pstat = 'Statistic_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
@@ -458,7 +458,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
 	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
 	catstat = pd.concat([statboundary,statstrand,statdirection,statlocation,statpercentage],axis=0)
-	save_panda(catstat,pstat)
+	save_panda(catstat,pstat.txt)
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 # 	if combinesamples:
 # 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
