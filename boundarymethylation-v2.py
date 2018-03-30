@@ -44,6 +44,7 @@ from scipy.interpolate import splrep, splev
 import scipy.stats as ss
 from scipy.stats import mstats
 from collections import Counter
+from scipy import stats
 
 def get_args():
 	parser = argparse.ArgumentParser(description="Description")
@@ -346,6 +347,44 @@ def seperate_elements_and_random(pdfeatures,column,value):
 	random  = pdfeatures[pdfeatures[column]!=value]
 	return element,random
 
+# get standard deviation, from ruth's random region script
+def getPopSD(arObservedOverlaps):
+	floatLen = float(len(arObservedOverlaps))
+	floatMean = float(sum(arObservedOverlaps))/len(arObservedOverlaps)
+	dSumOfSquares = sum([((float(number) - floatMean) ** 2) for number in arObservedOverlaps])
+	dVariance = float(dSumOfSquares) / floatLen
+	return math.sqrt(dVariance)
+
+# ks test from ruth's random region script
+def KSTest(aOverlapBP):
+	mean = float(sum(aOverlapBP)) / len(aOverlapBP)
+	sd = getPopSD(aOverlapBP)
+	rvNormMatched = stats.norm.rvs(loc=mean, scale=sd, size=len(aOverlapBP))
+	npArOverlapBP = np.array(aOverlapBP)
+	ksStat, KsPval = stats.ks_2samp(npArOverlapBP, rvNormMatched)
+	if KsPval <= 0.05:
+		strKSresult = "No"
+	else:
+		strKSresult = "Yes"
+	return ksStat, KsPval, strKSresult
+
+# run ks test for normal distribution and choose appropriate stats test
+def run_appropriate_test(element,random):
+	ksStat,KsPval,strKSresult = KSTest(element)
+	if strKSresult == 'Yes':
+		statcoef,statpval = stats.ttest_ind(element,random)
+		stattest = 'TTest'
+		formatpval = '{:.01e}'.format(statpval)
+	else:
+		statcoef,statpval = stats.mannwhitneyu(element,random)
+		stattest = 'MannWhitneyUTest'
+		formatpval = '{:.01e}'.format(statpval)
+	return formatpval,statcoef,stattest
+
+# save panda
+def save_panda(pdData, strFilename):
+	pdData.to_csv(strFilename,sep='\t',index=True)
+
 # plot params
 def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 	element,random = seperate_elements_and_random(removedups,'group','element')
@@ -353,9 +392,16 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:])
+	collectstats = []
 	if whichplot == 'boxplot':
 		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
 		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
+		for bartype in element[hval].unique():
+			typeelement = element[element[hval]==bartype]
+			typerandom = random[random[hval]==bartype]
+			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typeelement[yval],typerandom[yval])
+			statstable = pd.DataFrame([bartype,formatpvaltype,statcoeftype,stattesttype],index=['comparison group','p value','coef','test'],columns=[yval])
+			collectstats.append(statstable)
 	else:
 		for tissue in element[hval].unique():
 			tissueelement = element[element[hval]==tissue]
@@ -366,7 +412,11 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=10)
 		ax0.legend()
 		ax1.legend()
-	ax0.set_title("UCEs")
+	formatpval,statcoef,stattest = run_appropriate_test(element[yval],random[yval])
+	type = 'whole set'
+	statstable = pd.DataFrame([type,formatpval,statcoef,stattest],index=['comparison group','p value','coef','test'],columns=[yval])
+	collectstats.append(statstable)
+	ax0.set_title("Ultraconserved Elements")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
 	for plot in subplots:
@@ -375,6 +425,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 		plot.set_xlabel(setxlabel,fontsize=16)
 	sns.despine()
 	plt.savefig(pp,format='pdf')
+	return collectstats
 
 # Make graphs for fangs
 def graph_boundary_methylation(pdfeatures,filelabel):
@@ -386,29 +437,28 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
 		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
+		pstat = PdfPages('Statistic_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 	else:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
 		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
+		pstat = PdfPages('Statistic_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
 # 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
-# 	print removedupcpgper
 	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
 	valueDict = {'C':'+','G':'-'}
 	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(valueDict)
-# 	print removedupstrand
 	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
-# 	print removedupdir
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
-# 	print removeduploc
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
-# 	print removeduppercentage
-	set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
-	set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Count Methylation Strand','Tissue','boxplot')
-	set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
-	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
-	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
+	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
+	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Count Methylation Strand','Tissue','boxplot')
+	statdirection = set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
+	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
+	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
+	catstat = pd.concat([statboundary,statstrand,statdirection,statlocation,statpercentage],axis=0)
+	save_panda(catstat,pstat)
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 # 	if combinesamples:
 # 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
