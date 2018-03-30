@@ -62,7 +62,8 @@ def get_args():
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 
-	parser.add_argument("-mp","--methylationthresholdpercentage",type=int, default="1",help='size to threshold percentage methylation data')
+	parser.add_argument("-mpu","--methylationthresholdpercentageupper",type=int, default="100",help='size to threshold percentage methylation data upper bound')
+	parser.add_argument("-mpl","--methylationthresholdpercentagelower",type=int, default="1",help='size to threshold percentage methylation data lower bound')
 	parser.add_argument("-mc","--methylationthresholdcoverage",type=int,default="10",help='size to threshold uncapped coverage of methylation data to send to percentage methylation, field often uses 10')
 	parser.add_argument("-ms","--combinemethylationsamples",action='store_true',help='whether to combine those samples with the same tissue/cell type or leave as seperate')
 
@@ -75,7 +76,8 @@ def set_global_variables(args):
 	global periphery
 	global binDir
 	global elementsize
-	global methPerThresh
+	global methPerThreshupper
+	global methPerThreshlower
 	global methCovThresh
 	global eFiles
 	global rFiles
@@ -91,7 +93,8 @@ def set_global_variables(args):
 	periphery = args.periphery
 	binDir = args.bin
 	elementsize = args.element
-	methPerThresh = args.methylationthresholdpercentage
+	methPerThreshupper = args.methylationthresholdpercentageupper
+	methPerThreshlower = args.methylationthresholdpercentagelower
 	methCovThresh = args.methylationthresholdcoverage
 	eFiles = args.efile
 	mFiles = [line.strip() for line in args.methylationfile]
@@ -205,9 +208,9 @@ def convert_panda_to_bed_format(panda):
 # Threshold methylation data by coverage and percentage
 def threshold_methylation_data(methFeatures,methName):
 	pdmethFeatures = convert_bedtool_to_panda(methFeatures)
-	pdmethThresh = (pdmethFeatures[(pdmethFeatures.loc[:,3] >= methCovThresh) & (pdmethFeatures.loc[:,4] >= methPerThresh)])
+	pdmethThresh = (pdmethFeatures[(pdmethFeatures.loc[:,3] >= methCovThresh) & (pdmethFeatures.loc[:,4] <= methPerThreshupper) & (pdmethFeatures.loc[:,4] >= methPerThreshlower)])
 	btmethThresh = convert_panda_to_bed_format(pdmethThresh)
-	print 'methylation coverage is being thresholded at {0} and percentage at {1}'.format(methCovThresh,methPerThresh)
+	print 'methylation coverage is being thresholded at {0} and percentage between {1} and {2}'.format(methCovThresh,methPerThreshlower,methPerThreshupper)
 	initiallength = len(pdmethFeatures.index)
 	checklength = initiallength - len(pdmethThresh.index)
 	print 'there were {0} out of {1} total removed by thresholding {2}'.format(checklength,initiallength,methName)
@@ -382,10 +385,10 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	sns.set_palette("husl",n_colors=len(pdfeatures['Tissue'].unique()))
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
-		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
+		pp = PdfPages('Methylation_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 	else:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
-		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThresh,methCovThresh))
+		pp = PdfPages('Methylation_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
@@ -424,8 +427,13 @@ def run_whole_script_for_group(pdfeatures,rFiles,label):
 	collect.append(allstream)
 	collect.append(allreverse)
 	for randomFile in rFiles:
+		print 'collecting data frame for {0}'.format(randomFile)
 		randomFeatures = collect_input_data_frame(randomFile)
-		ranstream,ranreverse = run_whole_analysis_for_boundaries(randomFeatures,'random{0}'.format(randomFile))
+		if labelcolumn:
+			typefeatures = (randomFeatures[randomFeatures['type'] == label])
+		else:
+			typefeatures = randomFeatures
+		ranstream,ranreverse = run_whole_analysis_for_boundaries(typefeatures,'random{0}'.format(randomFile))
 		collect.append(ranstream)
 		collect.append(ranreverse)
 		print 'collected data frame for {0}'.format(randomFile)
@@ -437,12 +445,13 @@ def main():
 	set_global_variables(args)
 	directionFeatures = collect_input_data_frame(eFiles)
 	print 'collected data frame for {0}'.format(eFiles)
-	run_whole_script_for_group(directionFeatures,rFiles,'All')
 	if labelcolumn:
 		typeList = directionFeatures['type'].unique()
 		for type in typeList:
 			typefeatures = (directionFeatures[directionFeatures['type'] == type])
 			run_whole_script_for_group(typefeatures,rFiles,type)
+	else:
+		run_whole_script_for_group(directionFeatures,rFiles,'All')
 
 if __name__ == "__main__":
 	main()
