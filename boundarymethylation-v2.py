@@ -386,7 +386,7 @@ def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
 # plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot):
+def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpalette,randompalette):
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
@@ -394,13 +394,13 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot):
 	ax1 = plt.subplot(gs[1,:])
 	collectstats = []
 	if whichplot == 'boxplot':
-		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0)
-		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1)
+		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette)
+		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette)
 		for bartype in element[hval].unique():
 			typeelement = element[element[hval]==bartype]
 			typerandom = random[random[hval]==bartype]
 			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typeelement[yval],typerandom[yval])
-			statstable = pd.DataFrame([bartype,formatpvaltype,statcoeftype,stattesttype],index=['comparison group','p value','coef','test'],columns=[yval])
+			statstable = pd.DataFrame([yval,bartype,formatpvaltype,statcoeftype,stattesttype],index=['count set','comparison group','p value','coefficient','stats test'])
 			collectstats.append(statstable)
 	else:
 		for tissue in element[hval].unique():
@@ -414,7 +414,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot):
 		ax1.legend()
 	formatpval,statcoef,stattest = run_appropriate_test(element[yval],random[yval])
 	type = 'whole set'
-	statstable = pd.DataFrame([type,formatpval,statcoef,stattest],index=['comparison group','p value','coef','test'],columns=[yval])
+	statstable = pd.DataFrame([yval,type,formatpvaltype,statcoeftype,stattesttype],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
 	ax0.set_title("Ultraconserved Elements")
 	ax1.set_title("Random Regions")
@@ -455,14 +455,25 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
 	collectstat = []
-	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot')
-	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot')
-	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot')
+	boundarypaletteelement = {'upstream':'#8ba6e9','down stream':'#455374'}
+	boundarypaletterandom = {'upstream':'#c5969d','down stream':'#624b4e'}
+	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
+	strandpaletteelement = {'+':'#8ba6e9','-':'#455374'}
+	strandpaletterandom = {'+':'#c5969d','-':'#624b4e'}
+	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
+	directionpaletteelement = {'AT rich':'#8ba6e9','AT poor':'#455374','AT balanced':'#c5d2f4'}
+	directionpaletterandom = {'+':'#c5969d','-':'#624b4e','AT balanced':'#e2cace'}
+	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
 	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot') 
 	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot')
-	collectstat.extend([[statboundary,statstrand,statdirection,statlocation,statpercentage]])
+	collectstat.extend(statboundary)
+	collectstat.extend(statstrand)
+	collectstat.extend(statdirection)
+	collectstat.extend(statlocation)
+	collectstat.extend(statpercentage)
 	catstat = pd.concat(collectstat,axis=1)
-	save_panda(catstat,pstat.txt)
+	save_panda(catstat,'{0}.txt'.format(pstat))
+
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 # 	if combinesamples:
 # 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
