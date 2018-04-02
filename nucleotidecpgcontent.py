@@ -475,6 +475,10 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	pp.savefig()
 	pp.close()
 
+# save panda
+def save_panda(pdData, strFilename):
+	pdData.to_csv(strFilename,sep='\t',index=True)
+
 # Make graphs for fangs
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
@@ -487,14 +491,6 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-	
-	# Stats
-# 	wilcoxonsignedrank = ss.wilcoxon(CGmean,ranCGmean)
-# 	sdelement = CGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdrandom = ranCGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdkruskal = mstats.kruskalwallis(sdelement,sdrandom)
-# 	ax0.text(20,90,'Wilcox Signed Rank P-value {:0.1e}'.format(wilcoxPSRMean[1]),size=6,clip_on=False)
-# 	ax2.text(16.25,14.5,'KW P-value {:0.1e}'.format(kruskalSD[1]),size=6,clip_on=False)
 
 	ax0 = plt.subplot(gs[0,:])
 	ax1 = plt.subplot(gs[1,:],sharex=ax0)
@@ -502,6 +498,17 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
 		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
 		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
+		# Stats
+		wilcoxonsignedrank = ss.wilcoxon(CGmean,ranCGmean)
+# 		sdelement = CGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
+# 		sdrandom = ranCGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
+# 		sdkruskal = mstats.kruskalwallis(sdelement,sdrandom)
+# 		ax0.text(20,90,'Wilcox Signed Rank P-value {:0.1e}'.format(wilcoxPSRMean[1]),size=6,clip_on=False)
+# 		ax2.text(16.25,14.5,'KW P-value {:0.1e}'.format(kruskalSD[1]),size=6,clip_on=False)
+		statstable = pd.DataFrame([wilcoxonsignedrank],
+			columns=['statistic','pvalue'],
+			index=['wsr'])
+		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
 		# If want to plot each line separately
 # 		for dfNuc in Random:
 # 			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
@@ -516,10 +523,8 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	ax1.set_xlabel('Position (bp)',size=16)
 	ax1.set_ylabel('Standard Deviation',size=16)
 	plt.setp(ax1.get_xticklabels(),visible=True)
-
 	ax0.tick_params(axis='both',which='major',labelsize=16)
 	ax1.tick_params(axis='both',which='major',labelsize=16)
-
 	subplots = [ax0,ax1]
 	for plot in subplots:
 		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
@@ -529,9 +534,6 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
-# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 		plot.text(32,65,'11bp sliding window',size=6)
-
 	sns.despine()
 	pp.savefig()
 	pp.close()
