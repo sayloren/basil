@@ -386,7 +386,7 @@ def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
 # plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
+def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot):
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
@@ -421,7 +421,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setylabel,setxlabel,whichplot):
 	subplots = [ax0,ax1]
 	for plot in subplots:
 		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel(setylabel,size=16)
+		plot.set_ylabel('Count Methylation',size=16)
 		plot.set_xlabel(setxlabel,fontsize=16)
 	sns.despine()
 	plt.savefig(pp,format='pdf')
@@ -447,17 +447,21 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
 # 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
 	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
-	valueDict = {'C':'+','G':'-'}
-	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(valueDict)
+	strandDict = {'C':'+','G':'-'}
+	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(strandDict)
 	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
+	dirDict = {'+':'AT rich','-':'AT poor','=':'AT balanced'}
+	removedupdir['ATcontent'] = removedupdir.loc[:,'directionality'].map(dirDict)
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
-	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Count CpGs Methylated','Tissue','boxplot')
-	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Count Methylation Strand','Tissue','boxplot')
-	statdirection = set_plot_params(removedupdir,'Tissue','dircount','directionality',pp,'Count Directionality','Tissue','boxplot')
-	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Count Methylation Location','Distance from Boundary','distplot') 
-	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Count % Methylation','Percentage','distplot')
-	catstat = pd.concat([statboundary,statstrand,statdirection,statlocation,statpercentage],axis=0)
+	collectstat = []
+	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot')
+	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot')
+	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot')
+	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot') 
+	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot')
+	collectstat.extend([[statboundary,statstrand,statdirection,statlocation,statpercentage]])
+	catstat = pd.concat(collectstat,axis=1)
 	save_panda(catstat,pstat.txt)
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
 # 	if combinesamples:
