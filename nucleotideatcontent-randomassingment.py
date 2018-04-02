@@ -59,6 +59,7 @@ def get_args():
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-p',"--plotlinesize",type=int,default=1,help='size of the line to plot')
 	parser.add_argument("-n", "--numberrandomassignments",default=10,type=int,help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
+	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
@@ -79,6 +80,7 @@ def set_global_variables(args):
 	global stringName
 	global randomassignments
 	global plotlinesize
+	global reverseComplement
 	num = args.total
 	elementsize = args.element
 	inuce = args.inset
@@ -95,6 +97,7 @@ def set_global_variables(args):
 	stringName = args.stringname
 	randomassignments = args.numberrandomassignments
 	plotlinesize = args.plotlinesize
+	reverseComplement = args.reversecomplement
 	print 'collected global parameters'
 
 def set_ploting_parameters():
@@ -300,7 +303,7 @@ def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
 # graph
-def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRandom): # Extra
+def graph_element_line_means_random_below(dfWindow,names,fileName,denseRandom): # Extra
 	set_ploting_parameters()
 	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
 	totalnumberelements = str(len(ATgroup.index))
@@ -348,13 +351,6 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,Random,denseRa
 	pp.savefig()
 	pp.close()
 
-# for type groups, separate the groups and run the analyses
-def separate_dataframe_by_group(listgroup,directionFeatures,typecolumn,fileName):
-	bool = (directionFeatures[directionFeatures[typecolumn] == listgroup])
-	dfWindow,Names = sliding_window_wrapper(bool['combineString'],bool['id'])
-	print 'separated df by type'
-	return bool,dfWindow,Names
-
 # sliding window RCsorting
 def sort_sliding_window_by_directionality(negStr,posStr):
 	negStr['reverseComplement']=negStr.apply(lambda row: reverse_complement_dictionary(row['combineString']),axis=1)
@@ -398,7 +394,11 @@ def main():
 		typeList = directionFeatures['type'].unique()
 		for type in typeList:
 			print 'Now running {0} elements'.format(type)
-			typeBool,typeWindow,typeNames = separate_dataframe_by_group(type,rangeFeatures,'type',eFiles)
+			bool = (rangeFeatures[rangeFeatures['type'] == type])
+			if reverseComplement:
+				boolWindow,boolNames = sort_elements_by_directionality(bool,'directionality')
+			else:
+				boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
 			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
 			spreadRandomtype,denseRandomtype=[],[]
 			for i in range(randomassignments):
@@ -406,16 +406,19 @@ def main():
 				typedirWindow,typedirNames = sort_elements_by_directionality(typeBool,'randomDirectiontype')
 				spreadRandomtype.append(typedirWindow)
 			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,typeNames)
-			graph_element_line_means_random_below(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),spreadRandomtype,denseRandomtype)
+			graph_element_line_means_random_below(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
 	else:
-		allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
+		if reverseComplement:
+			allWindow,allNames = sort_elements_by_directionality(directionFeatures,'directionality')
+		else:
+			allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
 		spreadRandom,denseRandom=[],[]
 		for i in range(randomassignments):
 			directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
 			randirWindow,randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
 			spreadRandom.append(randirWindow)
 		denseRandom = sliding_window_df_to_collect_all_random(spreadRandom,allNames)
-		graph_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels),spreadRandom,denseRandom)
+		graph_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels),denseRandom)
 	endtime = time.time()
 	print 'total time elapsed is {0}'.format(endtime-starttime)
 
