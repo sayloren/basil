@@ -47,37 +47,24 @@ import time
 
 # set command line arguments
 def get_args():
-	# File lists
 	parser = argparse.ArgumentParser(description="Description")
 	parser.add_argument("efile", type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-r","--randomfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast") # option to not use random at all, or generate randoms?
-
-	# Columns in element file - all 0 based
 	parser.add_argument("-lc", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is')
 	parser.add_argument("-dc", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-ic", "--idcolumn",type=int,help='column in the element file where the id is, if not provided will be generated for the sliding window collection')
-
-	# Genome Files
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
-
-	# Integer Parameters
 	parser.add_argument("-t","--total",type=int,default="600",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 	parser.add_argument("-i","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-w","--window",type=int,default="11",help='size of sliding window, should be an odd number, previous studies have used 11')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
-
-	# plot filename addition
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-l',"--plotlinesize",type=int,default=1,help="size of the line to plot")
-
-	# directionality parameters
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	parser.add_argument("-n", "--numberrandomassignments",type=int,help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
 	parser.add_argument('-m',"--motifdirectionality",type=str,help='if directionality should be assigned by motif presence')
-
-	# Add additional descriptive file name information
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
@@ -486,46 +473,26 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	totalnumberelements = str(len(CGgroup.index))
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
-	gs = gridspec.GridSpec(2,1,height_ratios=[3,1])
+	gs = gridspec.GridSpec(1,1,height_ratios=[1])
 	gs.update(hspace=.8)
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
-
 	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:],sharex=ax0)
 	if any([rFiles,randomassignments]):
 		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
 		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
-		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
-		# Stats
 		wilcoxonsignedrank = ss.wilcoxon(CGmean,ranCGmean)
-# 		sdelement = CGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 		sdrandom = ranCGgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 		sdkruskal = mstats.kruskalwallis(sdelement,sdrandom)
-# 		ax0.text(20,90,'Wilcox Signed Rank P-value {:0.1e}'.format(wilcoxPSRMean[1]),size=6,clip_on=False)
-# 		ax2.text(16.25,14.5,'KW P-value {:0.1e}'.format(kruskalSD[1]),size=6,clip_on=False)
 		statstable = pd.DataFrame([wilcoxonsignedrank],
 			columns=['statistic','pvalue'],
 			index=['wsr'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-		# If want to plot each line separately
-# 		for dfNuc in Random:
-# 			ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
-# 			ax0.plot(fillX,ranCGmean,linewidth=1,alpha=0.3)
-# 			ax1.plot(fillX,ranCGstd,linewidth=1,alpha=0.3)
 	ax0.plot(fillX,CGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% CpG Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
-# 	ax0.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
-	ax1.plot(fillX,CGstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
-	ax1.set_xlabel('Position (bp)',size=16)
-	ax1.set_ylabel('Standard Deviation',size=16)
-	plt.setp(ax1.get_xticklabels(),visible=True)
 	ax0.tick_params(axis='both',which='major',labelsize=16)
-	ax1.tick_params(axis='both',which='major',labelsize=16)
-	subplots = [ax0,ax1]
+	subplots = [ax0]
 	for plot in subplots:
 		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
 		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#d7b7bc')
