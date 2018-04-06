@@ -410,8 +410,8 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 			tissuerandom = random[random[hval]==tissue]
 			tissueelement.dropna(axis=0,inplace=True)
 			tissuerandom.dropna(axis=0,inplace=True)
-			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=10,norm_hist=True)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=10,norm_hist=True)
+			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,norm_hist=True)
+			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,norm_hist=True)
 		ax0.legend()
 		ax1.legend()
 	fillnaelement = element[yval].fillna(0)
@@ -421,12 +421,12 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 	statstable = pd.DataFrame([yval,type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
 	for tissue in element['Tissue'].unique():
-		tissueelement = formatelement.loc[tissue]
-		typefillnaelement = tissueelement[yval].fillna(0)
-		tissuerandom = formatrandom.loc[tissue]
-		typefillnarandom = tissuerandom[yval].fillna(0)
-		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
-		statstable = pd.DataFrame([yval,tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+		tissueelement = element[element['Tissue']==tissue]
+		tissuerandom = random[random['Tissue']==tissue]
+		tissuefillnaelement = tissueelement[yval].fillna(0)
+		tissuefillnarandom = tissuerandom[yval].fillna(0)
+		tissueformatpval,tissuestatcoef,tissuestattest = run_appropriate_test(tissuefillnaelement,tissuefillnarandom)
+		statstable = pd.DataFrame([yval,tissue,tissueformatpval,tissuestatcoef,tissuestattest],index=['count set','comparison group','p value','coefficient','stats test'])
 		collectstats.append(statstable)
 	ax0.set_title("Ultraconserved Elements")
 	ax1.set_title("Random Regions")
