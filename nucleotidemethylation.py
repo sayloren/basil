@@ -425,10 +425,14 @@ def graph_methylation(pdfeatures,filelabel):
 	plt.suptitle(info,fontsize=16)
 	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
 	element,random = seperate_elements_and_random(removedups,'group','element')
-	print random.head()
-	# average location over random sets
 	formatelement = format_data_frame_by_column(element,'countlocation')
-	formatrandom = format_data_frame_by_column(random,'countlocation')
+	collecttissue = []
+	for tissue in random['Tissue'].unique():
+		tissuerandom = random[random['Tissue']==tissue]
+		formatrandom = format_data_frame_by_column(tissuerandom,'countlocation')
+		collecttissue.append(formatrandom)
+	averagetissue = pd.concat([each.stack() for each in collecttissue],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
+# 	stats by -/+, by tissue, by whole set
 # 	collectstats = []
 # 	formatpval,statcoef,stattest = run_appropriate_test(element['countlocation'],random['countlocation'])
 # 	type = 'whole set'
@@ -447,15 +451,19 @@ def graph_methylation(pdfeatures,filelabel):
 	ax0.set_yticklabels(ylabels0,minor=False,rotation=0)
 	ax0.set_yticks(np.arange(formatelement.shape[0]) + 0.5, minor=False)
 	ax0.set_title('Methylation Counts per Location - Elements',size=8)
-# 	ax1 = plt.subplot(gs[1,:])
-# 	heatmap1 = sns.heatmap(formatrandom,cmap='RdPu',ax=ax1,xticklabels=100)
-# 	ax1.set_ylabel('Tissue',size=8)
-# 	ax1.set_xlabel('Location',size=6)
-# 	ax1.tick_params(labelsize=8)
-# 	ylabels1 = formatrandom.index
-# 	ax1.set_yticklabels(ylabels1,minor=False,rotation=0)
-# 	ax1.set_yticks(np.arange(formatrandom.shape[0]) + 0.5, minor=False)
-# 	ax1.set_title('Methylation Counts per Location - Random Regions',size=8)
+	sns.despine()
+	pp.savefig()
+	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
+	gs.update(hspace=.8)
+	ax1 = plt.subplot(gs[0,:])
+	heatmap1 = sns.heatmap(averagetissue,cmap='RdPu',ax=ax1,xticklabels=100)
+	ax1.set_ylabel('Tissue',size=8)
+	ax1.set_xlabel('Location',size=6)
+	ax1.tick_params(labelsize=8)
+	ylabels1 = formatrandom.index
+	ax1.set_yticklabels(ylabels1,minor=False,rotation=0)
+	ax1.set_yticks(np.arange(formatrandom.shape[0]) + 0.5, minor=False)
+	ax1.set_title('Methylation Counts per Location - Random Regions',size=8)
 	sns.despine()
 	plt.savefig(pp,format='pdf')
 	pp.close()
