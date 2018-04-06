@@ -426,14 +426,14 @@ def graph_methylation(pdfeatures,filelabel):
 	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	formatelement = format_data_frame_by_column(element,'countlocation')
-	collecttissue = []
-	for tissue in random['Tissue'].unique():
-		tissuerandom = random[random['Tissue']==tissue]
-		formatrandom = format_data_frame_by_column(tissuerandom,'countlocation')
-		collecttissue.append(formatrandom)
-	averagetissue = pd.concat([each.stack() for each in collecttissue],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
+	collectgroup = []
+	for group in random['group'].unique():
+		grouprandom = random[random['group']==group]
+		formatrandom = format_data_frame_by_column(grouprandom,'countlocation')
+		collectgroup.append(formatrandom)
+	averagegroup = pd.concat([each.stack() for each in collectgroup],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
 	collectstats = []
-	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),averagetissue.values.flatten())
+	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),averagegroup.values.flatten())
 	type = 'whole set'
 	statstable = pd.DataFrame(['loccount',type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
@@ -443,7 +443,8 @@ def graph_methylation(pdfeatures,filelabel):
 		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
 		statstable = pd.DataFrame(['loccount',tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 		collectstats.append(statstable)
-	catstat = pd.concat(collectstat,axis=1)
+	catstat = pd.concat(collectstats,axis=1)
+	catstat.reset_index(drop=True,inplace=True)
 	save_panda(catstat.T,'{0}.txt'.format(pstat))
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
@@ -461,7 +462,7 @@ def graph_methylation(pdfeatures,filelabel):
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax1 = plt.subplot(gs[0,:])
-	heatmap1 = sns.heatmap(averagetissue,cmap='RdPu',ax=ax1,xticklabels=100)
+	heatmap1 = sns.heatmap(averagegroup,cmap='RdPu',ax=ax1,xticklabels=100)
 	ax1.set_ylabel('Tissue',size=8)
 	ax1.set_xlabel('Location',size=6)
 	ax1.tick_params(labelsize=8)

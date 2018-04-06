@@ -420,6 +420,14 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 	type = 'whole set'
 	statstable = pd.DataFrame([yval,type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
+	for tissue in element['Tissue'].unique():
+		tissueelement = formatelement.loc[tissue]
+		typefillnaelement = tissueelement[yval].fillna(0)
+		tissuerandom = formatrandom.loc[tissue]
+		typefillnarandom = tissuerandom[yval].fillna(0)
+		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
+		statstable = pd.DataFrame([yval,tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstable)
 	ax0.set_title("Ultraconserved Elements")
 	ax1.set_title("Random Regions")
 	subplots = [ax0,ax1]
@@ -476,6 +484,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	collectstat.extend(statlocation)
 	collectstat.extend(statpercentage)
 	catstat = pd.concat(collectstat,axis=1)
+	catstat.reset_index(drop=True,inplace=True)
 	save_panda(catstat.T,'{0}.txt'.format(pstat))
 
 # 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
