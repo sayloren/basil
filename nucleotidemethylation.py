@@ -432,14 +432,19 @@ def graph_methylation(pdfeatures,filelabel):
 		formatrandom = format_data_frame_by_column(tissuerandom,'countlocation')
 		collecttissue.append(formatrandom)
 	averagetissue = pd.concat([each.stack() for each in collecttissue],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
-# 	stats by -/+, by tissue, by whole set
-# 	collectstats = []
-# 	formatpval,statcoef,stattest = run_appropriate_test(element['countlocation'],random['countlocation'])
-# 	type = 'whole set'
-# 	statstable = pd.DataFrame([formatpval,statcoef,stattest],index=['p value','coefficient','stats test'])
-# 	collectstats.append(statstable)
-# 	catstat = pd.concat(collectstat,axis=1)
-# 	save_panda(catstat.T,'{0}.txt'.format(pstat))
+	collectstats = []
+	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),averagetissue.values.flatten())
+	type = 'whole set'
+	statstable = pd.DataFrame(['loccount',type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstable)
+	for tissue in element['Tissue'].unique():
+		tissueelement = formatelement.loc[tissue]
+		tissuerandom = formatrandom.loc[tissue]
+		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
+		statstable = pd.DataFrame(['loccount',tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstable)
+	catstat = pd.concat(collectstat,axis=1)
+	save_panda(catstat.T,'{0}.txt'.format(pstat))
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
