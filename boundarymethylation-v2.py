@@ -1,5 +1,5 @@
 """
-Script to run methylation analysis
+Script to run methylation analysis for flanks with heatmap
 
 Wren Saylor
 March 2018
@@ -57,8 +57,8 @@ def get_args():
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 
-	parser.add_argument("-mpu","--methylationthresholdpercentageupper",type=int, default="100",help='size to threshold percentage methylation data upper bound')
-	parser.add_argument("-mpl","--methylationthresholdpercentagelower",type=int, default="1",help='size to threshold percentage methylation data lower bound')
+	parser.add_argument("-mu","--methylationthresholdpercentageupper",type=int, default="100",help='size to threshold percentage methylation data upper bound')
+	parser.add_argument("-ml","--methylationthresholdpercentagelower",type=int, default="1",help='size to threshold percentage methylation data lower bound')
 	parser.add_argument("-mc","--methylationthresholdcoverage",type=int,default="10",help='size to threshold uncapped coverage of methylation data to send to percentage methylation, field often uses 10')
 	parser.add_argument("-ms","--combinemethylationsamples",action='store_true',help='whether to combine those samples with the same tissue/cell type or leave as seperate')
 
@@ -363,15 +363,18 @@ def KSTest(aOverlapBP):
 
 # run ks test for normal distribution and choose appropriate stats test
 def run_appropriate_test(element,random):
-	ksStat,KsPval,strKSresult = KSTest(element)
-	if strKSresult == 'Yes':
-		statcoef,statpval = stats.ttest_ind(element,random)
-		stattest = 'TTest'
-		formatpval = '{:.01e}'.format(statpval)
+	if (len(element.index) == 0) or (len(random.index) ==0):
+		formatpval,statcoef,stattest='nan','nan','nan'
 	else:
-		statcoef,statpval = stats.mannwhitneyu(element,random)
-		stattest = 'MannWhitneyUTest'
-		formatpval = '{:.01e}'.format(statpval)
+		ksStat,KsPval,strKSresult = KSTest(element)
+		if strKSresult == 'Yes':
+			statcoef,statpval = stats.ttest_ind(element,random)
+			stattest = 'TTest'
+			formatpval = '{:.01e}'.format(statpval)
+		else:
+			statcoef,statpval = stats.mannwhitneyu(element,random)
+			stattest = 'MannWhitneyUTest'
+			formatpval = '{:.01e}'.format(statpval)
 	return formatpval,statcoef,stattest
 
 # save panda
@@ -396,7 +399,9 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 		for bartype in element[hval].unique():
 			typeelement = element[element[hval]==bartype]
 			typerandom = random[random[hval]==bartype]
-			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typeelement[yval],typerandom[yval])
+			typefillnaelement = typeelement[yval].fillna(0)
+			typefillnarandom = typerandom[yval].fillna(0)
+			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typefillnaelement,typefillnarandom)
 			statstable = pd.DataFrame([yval,bartype,formatpvaltype,statcoeftype,stattesttype],index=['count set','comparison group','p value','coefficient','stats test'])
 			collectstats.append(statstable)
 	else:
@@ -409,7 +414,9 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=10,norm_hist=True)
 		ax0.legend()
 		ax1.legend()
-	formatpval,statcoef,stattest = run_appropriate_test(element[yval],random[yval])
+	fillnaelement = element[yval].fillna(0)
+	fillnarandom = random[yval].fillna(0)
+	formatpval,statcoef,stattest = run_appropriate_test(fillnaelement,fillnarandom)
 	type = 'whole set'
 	statstable = pd.DataFrame([yval,type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)

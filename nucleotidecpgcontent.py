@@ -110,7 +110,7 @@ def set_global_variables(args):
 
 	# Lists with the types and directions to use
 	global nucList
-	nucList = ['CG']
+	nucList = ['CG','G','C']
 	
 	# A string to add to the out file name in case you want to set up runs and let be
 	global stringName
@@ -357,11 +357,8 @@ def sliding_window_df_to_collect_all_random(collectRandom,allNames):
 # Wrapper for running sliding window and converting it into easy to use format
 def sliding_window_wrapper(features,label):
 	outCollect = run_sliding_window_for_each_nucleotide_string(features,label)
-	# outCollect is a list containing a dictionary for each nucleotide string search, with a list of the % at each search position
 	outFlatten=flatten_data_from_sliding_window(outCollect)
-	# outFlatten is a data frame with a column for each search string, containing a list of % at each search position
 	outDataFrame,names = convert_sliding_window_to_dataframe(outFlatten)
-	# outDataFrame is a list of dataframes for each search string, with the each % at each search position in a separate column
 	print 'retrieved sliding window data for nucleotides strings {0}'.format(names)
 	return outDataFrame,names
 
@@ -379,7 +376,15 @@ def collect_linear_two_nucleotides(dfWindow,names,nuc1):
 def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,collectRandom,collectRandomRC,denseRandom,denseRandomRC):
 	set_ploting_parameters()
 	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
+	Cgroup,Cmean,Cstd = collect_linear_two_nucleotides(dfWindow,names,'C')
+	Ggroup,Gmean,Gstd = collect_linear_two_nucleotides(dfWindow,names,'G')
+	totalCGmean = Cmean+Gmean
+	normCGmean = CGmean/totalCGmean
 	revCGgroup,revCGmean,revCGstd = collect_linear_two_nucleotides(revWindow,names,'CG')
+	revCgroup,revCmean,revCstd = collect_linear_two_nucleotides(revWindow,names,'C')
+	revGgroup,revGmean,revGstd = collect_linear_two_nucleotides(revWindow,names,'G')
+	totalrevCGmean = revCmean+revGmean
+	normrevCGmean = revCGmean/totalrevCGmean
 	totalnumberelements = str(len(CGgroup.index))
 	totalnumberelementsrc = str(len(revCGgroup.index))
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
@@ -389,63 +394,41 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
-
-	# Stats
-# 	wilcoxonsignedrank = ss.wilcoxon(ATmean,ranATmean)
-# 	wilcoxonsignedrankreverse = ss.wilcoxon(revATmean,revranATmean)
-# 	sdelement = ATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdrandom = ranATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdelementreverse = revATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdrandomreverse = revranATgroup.loc[:,plotLineLocationThree:plotLineLocationFour].std()
-# 	sdkruskal = mstats.kruskalwallis(sdelement,sdrandom)
-# 	sdkruskalreverse = mstats.kruskalwallis(sdelementreverse,sdrandomreverse)
-# 	ax0.text(20,90,'Wilcox Signed Rank P-value {:0.1e}'.format(wilcoxPSRMean[1]),size=6,clip_on=False)
-# 	ax2.text(16.25,14.5,'KW P-value {:0.1e}'.format(kruskalSD[1]),size=6,clip_on=False)
-
 	ax0 = plt.subplot(gs[0,0])
 	ax1 = plt.subplot(gs[1,0],sharex=ax0)
 	ax2 = plt.subplot(gs[0,1])
 	ax3 = plt.subplot(gs[1,1],sharex=ax0)
-
 	if any([rFiles,randomassignments]):
 		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
+		ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
+		ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
+		totalranCGmean = ranCmean+ranGmean
+		rannormCGmean = ranCGmean/totalranCGmean
 		revranCGgroup,revranCGmean,revranCGstd = collect_linear_two_nucleotides(denseRandomRC,names,'CG')
-		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		revranCgroup,revranCmean,revranCstd = collect_linear_two_nucleotides(denseRandomRC,names,'C')
+		revranGgroup,revranGmean,revranGstd = collect_linear_two_nucleotides(denseRandomRC,names,'G')
+		totalrevranCGmean = revranCmean+revranGmean
+		normrevranCGmean = revranCGmean/totalrevranCGmean
+		ax0.plot(fillX,rannormCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
 		ax1.plot(fillX,ranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
-		ax2.plot(fillX,revranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		ax2.plot(fillX,normrevranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
 		ax3.plot(fillX,revranCGstd,linewidth=plotlinesize,label='Random',color='#c5969d')
-		# If want to plot each line separately
-# 		for dfNuc in collectRandom:
-# 			ranATgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(dfNuc,names,'CG')
-# 			ax0.plot(fillX,ranCGmean,linewidth=1,alpha=0.3)
-# 			ax1.plot(fillX,ranCGstd,linewidth=1,alpha=0.3)
-# 			ax2.plot(fillX,ranCGmean,linewidth=1,alpha=0.3)
-# 			ax3.plot(fillX,ranCGstd,linewidth=1,alpha=0.3)
-
-	ax0.plot(fillX,CGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
-# 	ax0.fill_between(fillX,CGmean+CGstd,CGmean-CGstd,label='',alpha=0.2)
-	ax0.set_ylabel('% CpG Content',size=16)
+	ax0.plot(fillX,normCGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax0.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
-# 	ax0.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelements),size=16)
 	plt.xlim(0,num)
-
 	ax1.plot(fillX,CGstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax1.set_xlabel('Position (bp)',size=16)
 	ax1.set_ylabel('Standard Deviation',size=16)
 	plt.setp(ax1.get_xticklabels(), visible=True)
-
-	ax2.plot(fillX,revCGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
-# 	ax0.fill_between(fillX,revCGmean+revCGstd,revCGmean-revCGstd,label='',alpha=0.2)
-	ax2.set_ylabel('% CpG Content',size=16)
+	ax2.plot(fillX,normrevCGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax2.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax2.set_xlabel('Position (bp)',size=16)
-# 	ax2.set_title('Mean CpG Content With Standard Deviation, {0} elements'.format(totalnumberelementsrc),size=16)
 	plt.xlim(0,num)
-
 	ax3.plot(fillX,revCGstd,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax3.set_xlabel('Position (bp)',size=16)
 	ax3.set_ylabel('Standard Deviation',size=16)
 	plt.setp(ax3.get_xticklabels(), visible=True)
-
 	subplots = [ax0,ax1,ax2,ax3]
 	for plot in subplots:
 		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#d7b7bc')
@@ -455,9 +438,6 @@ def graph_element_line_means_with_rc_sorted(dfWindow,names,revWindow,fileName,co
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
 		plot.set_xlabel('Position (bp)',size=16)
-# 		plot.hlines(y=66,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
-# 		plot.text(32,65,'11bp sliding window',size=6)
-
 	sns.despine()
 	pp.savefig()
 	pp.close()
@@ -469,8 +449,12 @@ def save_panda(pdData, strFilename):
 # Make graphs for fangs
 def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	set_ploting_parameters()
-	CGgroup,CGmean,CGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
-	totalnumberelements = str(len(CGgroup.index))
+	CpGgroup,CpGmean,CpGstd = collect_linear_two_nucleotides(dfWindow,names,'CG')
+	Cgroup,Cmean,Cstd = collect_linear_two_nucleotides(dfWindow,names,'C')
+	Ggroup,Gmean,Gstd = collect_linear_two_nucleotides(dfWindow,names,'G')
+	totalCGmean = Cmean+Gmean
+	normCpGmean = CpGmean/totalCGmean
+	totalnumberelements = str(len(CpGgroup.index))
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(1,1,height_ratios=[1])
@@ -480,15 +464,19 @@ def graph_element_line_means(dfWindow,names,fileName,Random,denseRandom):
 	plt.suptitle(info,fontsize=10)
 	ax0 = plt.subplot(gs[0,:])
 	if any([rFiles,randomassignments]):
-		ranCGgroup,ranCGmean,ranCGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
-		ax0.plot(fillX,ranCGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
-		wilcoxonsignedrank = ss.wilcoxon(CGmean,ranCGmean)
+		ranCpGgroup,ranCpGmean,ranCpGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
+		ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
+		ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
+		rantotalCGmean = ranCmean+ranGmean
+		rannormCpGmean = ranCpGmean/rantotalCGmean
+		ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+		wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
 		statstable = pd.DataFrame([wilcoxonsignedrank],
 			columns=['statistic','pvalue'],
 			index=['wsr'])
 		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-	ax0.plot(fillX,CGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
-	ax0.set_ylabel('% CpG Content',size=16)
+	ax0.plot(fillX,normCpGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
+	ax0.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
 	plt.xlim(0,num)
 	ax0.tick_params(axis='both',which='major',labelsize=16)

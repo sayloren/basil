@@ -116,10 +116,10 @@ def get_bedtools_features(strFileName):
 # get the correct range for fang evaluation
 def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures = pd.read_table(btFeatures.fn, header=None)
+	midFeatures['middle'] = midFeatures.loc[:,1:2].mean(axis=1).astype(int)
 	midFeatures['chr'] = midFeatures.loc[:,0]
 	midFeatures['start'] = midFeatures.loc[:,1]
 	midFeatures['end'] = midFeatures.loc[:,2]
-	midFeatures['middle'] = midFeatures.loc[:,1:2].mean(axis=1).astype(int)
 	midFeatures['size'] = midFeatures.loc[:,2].astype(int)-midFeatures.loc[:,1].astype(int)
 	global uce
 	if elementsize:
@@ -130,10 +130,6 @@ def collect_coordinates_for_element_positions(btFeatures):
 			uce = getmin
 		else:
 			uce = getmin + 1
-	midFeatures['startup'] = midFeatures.loc[:,1] - periphery
-	midFeatures['startdown'] = midFeatures.loc[:,1] + periphery
-	midFeatures['endup'] = midFeatures.loc[:,2] - periphery
-	midFeatures['enddown'] = midFeatures.loc[:,2] + periphery
 	if idcolumn:
 		midFeatures['id'] = midFeatures.loc[:,idcolumn]
 	else:
@@ -201,6 +197,7 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
 		numval = rangeFeatures['directionality'].value_counts()
+		rangeFeatures.drop(labels='feature',axis=1,inplace=True)
 	print '{0} in {1}'.format(numval,fileName)
 	return rangeFeatures
 
@@ -230,17 +227,17 @@ def threshold_methylation_data(methFeatures,methName):
 	return btmethThresh
 
 # Intersect regions from the methylation data with element regions
-def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,subtractcolumn):
+def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,addvalue):
 	initiallength = len(meFeature)
-	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id',subtractcolumn]].values.astype(str).tolist(),wb=True,wa=True)
+	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id']].values.astype(str).tolist(),wb=True,wa=True)
 	checklength = len(intersectboundary)
 	print 'there were {0} intersections out of {1} in {2}'.format(checklength,initiallength,meName)
 	if len(intersectboundary) != 0:
 		pdmeth=convert_bedtool_to_panda(intersectboundary)
-		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr','estart','estop','id','subtract']
+		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr','estart','estop','id']
 		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmeth['strand'] = pdmeth['strand'].str.upper()
-		pdmeth['methlocation'] = pdmeth['subtract'].astype(int)-pdmeth['mstart'].astype(int)
+		pdmeth['methlocation'] = pdmeth['estop'].astype(int)-pdmeth['mstart'].astype(int)+addvalue
 		outmeth = pdmeth[['chr','mstart','mstop','estart','estop','id','percentage','methlocation','strand']]
 		outmeth['Tissue'] = meName.split(".")[0]
 		subfeatures = btFeatures[['id','directionality']]
@@ -257,15 +254,9 @@ def collect_methylation_data_by_element(pdfeatures):
 	for methname in mFiles:
 		mfeatures=get_bedtools_features(methname)
 		pdthresh=threshold_methylation_data(mfeatures,methname)
-		upboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'sBoundary','sEdge','sEdge')
-		middle=intersect_methylation_data(pdfeatures,pdthresh,methname,'sCenter','eCenter','eCenter')
-		downboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'eEdge','eBoundary','eBoundary')
-		middle['newmethlocation'] = middle['methlocation'].astype(int)+flankSize
-		middle.drop(labels='methlocation',axis=1,inplace=True)
-		middle.rename(columns={'newmethlocation':'methlocation'},inplace=True)
-		downboundary['newmethlocation'] = downboundary['methlocation'].astype(int)+flankSize+(uce-periphery)
-		downboundary.drop(labels='methlocation',axis=1,inplace=True)
-		downboundary.rename(columns={'newmethlocation':'methlocation'},inplace=True)
+		upboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'sBoundary','sEdge',0)
+		middle=intersect_methylation_data(pdfeatures,pdthresh,methname,'sCenter','eCenter',flankSize+periphery)
+		downboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'eEdge','eBoundary',flankSize+(uce-periphery))
 		capture.append(upboundary)
 		capture.append(middle)
 		capture.append(downboundary)
@@ -275,7 +266,7 @@ def collect_methylation_data_by_element(pdfeatures):
 
 # invert methlocation column
 def invert_location(pdfeatures):
-	originalRange = range(-periphery,periphery+1)#range(0,periphery*2)
+	originalRange = range(0,num)#-periphery,periphery+1
 	reverseRange = originalRange[::-1]
 	rangeDict = dict(zip(originalRange,reverseRange))
 	pdfeatures['newmethlocation'] = pdfeatures.loc[:,'methlocation'].map(rangeDict)
@@ -352,14 +343,6 @@ def run_whole_analysis_for_boundaries(pdfeatures,label):
 	allreverse['cgsum'] = revcg
 	return allstream,allreverse
 
-# count by feature for graphing
-def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
-	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
-	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
-	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
-	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
-	return removedups
-
 # separate the elements and the random regions
 def seperate_elements_and_random(pdfeatures,column,value):
 	element = pdfeatures[pdfeatures[column]==value]
@@ -404,51 +387,25 @@ def run_appropriate_test(element,random):
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
-# plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpalette,randompalette):
-	element,random = seperate_elements_and_random(removedups,'group','element')
-	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
-	gs.update(hspace=.8)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
-	collectstats = []
-# 	if whichplot == 'boxplot':
-# 		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette)
-# 		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette)
-# 		for label in ax0.get_xticklabels():
-# 			label.set_rotation(15)
-# 		for label in ax1.get_xticklabels():
-# 			label.set_rotation(15)
-# 		for bartype in element[hval].unique():
-# 			typeelement = element[element[hval]==bartype]
-# 			typerandom = random[random[hval]==bartype]
-# 			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typeelement[yval],typerandom[yval])
-# 			statstable = pd.DataFrame([yval,bartype,formatpvaltype,statcoeftype,stattesttype],index=['count set','comparison group','p value','coefficient','stats test'])
-# 			collectstats.append(statstable)
-# 	else:
-# 		for tissue in element[hval].unique():
-# 			tissueelement = element[element[hval]==tissue]
-# 			tissuerandom = random[random[hval]==tissue]
-# 			tissueelement.dropna(axis=0,inplace=True)
-# 			tissuerandom.dropna(axis=0,inplace=True)
-# 			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=10,norm_hist=True)
-# 			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=10,norm_hist=True)
-		ax0.legend()
-		ax1.legend()
-	formatpval,statcoef,stattest = run_appropriate_test(element[yval],random[yval])
-	type = 'whole set'
-	statstable = pd.DataFrame([yval,type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
-	collectstats.append(statstable)
-	ax0.set_title("Ultraconserved Elements")
-	ax1.set_title("Random Regions")
-	subplots = [ax0,ax1]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel('Count Methylation',size=16)
-		plot.set_xlabel(setxlabel,fontsize=16)
-	sns.despine()
-	plt.savefig(pp,format='pdf')
-	return collectstats
+# count by feature for graphing
+def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
+	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
+	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
+	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
+	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
+	return removedups
+
+# format features for graphing
+def format_data_frame_by_column(pdfeatures,countcol):
+	new_index = range(0,num)
+	pivotfeatures = pd.pivot_table(pdfeatures,index='methlocation',columns='Tissue',values=countcol)
+	pivotfeatures.columns.name = None
+	reindexfeatures = pivotfeatures.reindex(new_index,fill_value=0)
+	reindexfeatures.fillna('0',inplace=True)
+	reindexfeatures.index.name = None
+	transposefeatures = reindexfeatures.T
+	outfeatures = transposefeatures[transposefeatures.columns].astype(float)
+	return outfeatures
 
 # Make graphs for fangs
 def graph_methylation(pdfeatures,filelabel):
@@ -456,7 +413,6 @@ def graph_methylation(pdfeatures,filelabel):
 	methcount = Counter(methfiles)
 	info = str(filelabel)
 	sns.set_style('ticks')
-	sns.set_palette("husl",n_colors=len(pdfeatures['Tissue'].unique()))
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
 		pp = PdfPages('Methylation_Heatmap_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
@@ -467,45 +423,41 @@ def graph_methylation(pdfeatures,filelabel):
 		pstat = 'Statistic_Heatmap__{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
-	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
-# 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
-	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
-	strandDict = {'C':'+','G':'-'}
-	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(strandDict)
-	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
-	dirDict = {'+':'AT rich','-':'AT poor','=':'AT balanced'}
-	removedupdir['ATcontent'] = removedupdir.loc[:,'directionality'].map(dirDict)
-	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
-	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
-	collectstat = []
-	boundarypaletteelement = {'up stream':'#8ba6e9','down stream':'#adc0ef'}
-	boundarypaletterandom = {'up stream':'#c5969d','down stream':'#d6b5ba'}
-	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
-	strandpaletteelement = {'+':'#8ba6e9','-':'#adc0ef'}
-	strandpaletterandom = {'+':'#c5969d','-':'#d6b5ba'}
-	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
-	directionpaletteelement = {'AT rich':'#8ba6e9','AT poor':'#adc0ef','AT balanced':'#6174a3'}
-	directionpaletterandom = {'AT rich':'#c5969d','AT poor':'#d6b5ba','AT balanced':'#89696d'}
-	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
-	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot','husl','husl') 
-	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot','husl','husl')
-	collectstat.extend(statboundary)
-	collectstat.extend(statstrand)
-	collectstat.extend(statdirection)
-	collectstat.extend(statlocation)
-	collectstat.extend(statpercentage)
-	catstat = pd.concat(collectstat,axis=1)
-	save_panda(catstat.T,'{0}.txt'.format(pstat))
-
-# 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
-# 	if combinesamples:
-# 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
-# 		methsort.drop(labels='Tissue',axis=1,inplace=True)
-# 		methsort.rename(columns={'newTissue':'Tissue'},inplace=True)
-# 	removedupid = group_data_frame_by_column(methsort,'id','idcount')
-# 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
-# 	removedupavailcg = group_data_frame_by_column(methsort,'createdcpg','createdcpgtest')
-# 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
+	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
+	element,random = seperate_elements_and_random(removedups,'group','element')
+	print random.head()
+	# average location over random sets
+	formatelement = format_data_frame_by_column(element,'countlocation')
+	formatrandom = format_data_frame_by_column(random,'countlocation')
+# 	collectstats = []
+# 	formatpval,statcoef,stattest = run_appropriate_test(element['countlocation'],random['countlocation'])
+# 	type = 'whole set'
+# 	statstable = pd.DataFrame([formatpval,statcoef,stattest],index=['p value','coefficient','stats test'])
+# 	collectstats.append(statstable)
+# 	catstat = pd.concat(collectstat,axis=1)
+# 	save_panda(catstat.T,'{0}.txt'.format(pstat))
+	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
+	gs.update(hspace=.8)
+	ax0 = plt.subplot(gs[0,:])
+	heatmap0 = sns.heatmap(formatelement,cmap='PuBu',ax=ax0,xticklabels=100)
+	ax0.set_ylabel('Tissue',size=8)
+	ax0.set_xlabel('Location',size=6)
+	ax0.tick_params(labelsize=8)
+	ylabels0 = formatelement.index
+	ax0.set_yticklabels(ylabels0,minor=False,rotation=0)
+	ax0.set_yticks(np.arange(formatelement.shape[0]) + 0.5, minor=False)
+	ax0.set_title('Methylation Counts per Location - Elements',size=8)
+# 	ax1 = plt.subplot(gs[1,:])
+# 	heatmap1 = sns.heatmap(formatrandom,cmap='RdPu',ax=ax1,xticklabels=100)
+# 	ax1.set_ylabel('Tissue',size=8)
+# 	ax1.set_xlabel('Location',size=6)
+# 	ax1.tick_params(labelsize=8)
+# 	ylabels1 = formatrandom.index
+# 	ax1.set_yticklabels(ylabels1,minor=False,rotation=0)
+# 	ax1.set_yticks(np.arange(formatrandom.shape[0]) + 0.5, minor=False)
+# 	ax1.set_title('Methylation Counts per Location - Random Regions',size=8)
+	sns.despine()
+	plt.savefig(pp,format='pdf')
 	pp.close()
 
 # run the whole series of steps through to graphing
