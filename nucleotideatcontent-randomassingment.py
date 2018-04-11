@@ -403,8 +403,8 @@ def main():
 				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
 				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
 				spreadRandomtype.append(typedirWindow)
-			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,typeNames)
-			graph_element_line_means_random_below(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
+			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,boolNames)
+			graph_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
 	else:
 		if reverseComplement:
 			allWindow,allNames = sort_elements_by_directionality(directionFeatures,'directionality')
