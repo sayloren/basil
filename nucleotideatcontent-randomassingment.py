@@ -397,11 +397,11 @@ def main():
 				boolWindow,boolNames = sort_elements_by_directionality(bool,'directionality')
 			else:
 				boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
-			probOptionstype = make_probabilites_for_direction(typeBool,'directionality')
+			probOptionstype = make_probabilites_for_direction(bool,'directionality')
 			spreadRandomtype,denseRandomtype=[],[]
 			for i in range(randomassignments):
-				typeBool['randomDirectiontype'] = np.random.choice(dirOptions,len(typeBool.index),p=probOptionstype)
-				typedirWindow,typedirNames = sort_elements_by_directionality(typeBool,'randomDirectiontype')
+				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
+				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
 				spreadRandomtype.append(typedirWindow)
 			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,typeNames)
 			graph_element_line_means_random_below(typeWindow,typeNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
