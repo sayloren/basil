@@ -45,24 +45,19 @@ def get_args():
 	parser.add_argument("efile",type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-r","--randomfile",required=True,type=argparse.FileType('rU'),help="A file containing a list of paths to the random regions equable with your elements to plot in contrast")
 	parser.add_argument("-m","--methylationfile",type=argparse.FileType('rU'),help="A file containing a list of paths to the methlylation bedfiles, where coverage is in the 4th column and percentage in the 5th. Files names in format; 'tissue_tissue-number.filetype'")
-
 	parser.add_argument("-l", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is') # way to only read in certain entries, like only read in if 'intergenic'
 	parser.add_argument("-d", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-i", "--idcolumn",type=int,help='column in the element file where the id is')
-
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
-
-	parser.add_argument("-t","--total",type=int,default="600",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
+	parser.add_argument("-t","--total",type=int,default="2200",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
 	parser.add_argument("-p","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
-
 	parser.add_argument("-mu","--methylationthresholdpercentageupper",type=int, default="100",help='size to threshold percentage methylation data upper bound')
 	parser.add_argument("-ml","--methylationthresholdpercentagelower",type=int, default="1",help='size to threshold percentage methylation data lower bound')
 	parser.add_argument("-mc","--methylationthresholdcoverage",type=int,default="10",help='size to threshold uncapped coverage of methylation data to send to percentage methylation, field often uses 10')
 	parser.add_argument("-ms","--combinemethylationsamples",action='store_true',help='whether to combine those samples with the same tissue/cell type or leave as seperate')
-
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	return parser.parse_args()
@@ -108,6 +103,21 @@ def set_global_variables(args):
 	stringName = args.stringname
 	reverseComplement = args.reversecomplement
 	combinesamples = args.combinemethylationsamples
+
+def set_ploting_parameters():
+	# Locations for plotting with sliding window
+	global plotLineLocationOne # upstream element boundary
+	global plotLineLocationTwo # downstream element boundary
+	global plotLineLocationThree # upstream element inset
+	global plotLineLocationFour # downstream element inset
+	plotLineLocationOne = ((num-uce)/2)+periphery
+	plotLineLocationTwo = ((num-uce)/2)+(uce-periphery)
+	plotLineLocationThree = (num-uce)/2
+	plotLineLocationFour = ((num-uce)/2)+uce
+	global centerelementpoint
+	centerelementpoint = ((num-uce)/2)+(uce/2)
+	print 'center point', centerelementpoint
+	print 'set plotting parameters'
 
 # get bt features
 def get_bedtools_features(strFileName):
@@ -409,6 +419,7 @@ def format_data_frame_by_column(pdfeatures,countcol):
 
 # Make graphs for fangs
 def graph_methylation(pdfeatures,filelabel):
+	set_ploting_parameters()
 	methfiles = [(file.split("-")[0]) for file in mFiles]
 	methcount = Counter(methfiles)
 	info = str(filelabel)
@@ -434,15 +445,26 @@ def graph_methylation(pdfeatures,filelabel):
 	averagegroup = pd.concat([each.stack() for each in collectgroup],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
 	collectstats = []
 	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),averagegroup.values.flatten())
-	type = 'whole set'
-	statstable = pd.DataFrame(['loccount',type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+	statstable = pd.DataFrame(['loccount','whole set',formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
+	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(formatelement.loc[:,:plotLineLocationOne].values.flatten(),formatelement.loc[:,plotLineLocationTwo:].values.flatten())
+	statstableelement = pd.DataFrame(['loccount','element',formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstableelement)
+	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(averagegroup.loc[:,:plotLineLocationOne].values.flatten(),averagegroup.loc[:,plotLineLocationTwo:].values.flatten())
+	statstablerandom = pd.DataFrame(['loccount','random',formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstablerandom)
 	for tissue in element['Tissue'].unique():
 		tissueelement = formatelement.loc[tissue]
 		tissuerandom = formatrandom.loc[tissue]
 		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
 		statstable = pd.DataFrame(['loccount',tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 		collectstats.append(statstable)
+		formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(tissueelement.loc[:,:plotLineLocationOne].values.flatten(),tissueelement.loc[:,plotLineLocationTwo:].values.flatten())
+		statstableelement = pd.DataFrame(['loccount','{0}_element'.format(tissue),formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstableelement)
+		formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(tissuerandom.loc[:,:plotLineLocationOne].values.flatten(),tissuerandom.loc[:,plotLineLocationTwo:].values.flatten())
+		statstablerandom = pd.DataFrame(['loccount','{0}_random'.format(tissue),formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstablerandom)
 	catstat = pd.concat(collectstats,axis=1)
 	catstat.reset_index(drop=True,inplace=True)
 	save_panda(catstat.T,'{0}.txt'.format(pstat))

@@ -409,7 +409,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 			tissueelement.dropna(axis=0,inplace=True)
 			tissuerandom.dropna(axis=0,inplace=True)
 			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)
+			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)#,norm_hist=False
 		ax0.legend()
 		ax1.legend()
 	fillnaelement = element[yval].fillna(0)
