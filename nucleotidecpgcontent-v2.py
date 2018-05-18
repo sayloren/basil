@@ -308,18 +308,17 @@ def graph_element_line_means(dfWindow,names,fileName,denseRandom):
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 	ax0 = plt.subplot(gs[0,:])
-	if any([rFiles,randomassignments]):
-		ranCpGgroup,ranCpGmean,ranCpGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
-		ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
-		ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
-		rantotalCGmean = ranCmean+ranGmean
-		rannormCpGmean = ranCpGmean/rantotalCGmean
-		ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
-		wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
-		statstable = pd.DataFrame([wilcoxonsignedrank],
-			columns=['statistic','pvalue'],
-			index=['wsr'])
-		save_panda(statstable,'Stats_{0}.txt'.format(fileName))
+	ranCpGgroup,ranCpGmean,ranCpGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
+	ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
+	ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
+	rantotalCGmean = ranCmean+ranGmean
+	rannormCpGmean = ranCpGmean/rantotalCGmean
+	ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
+	wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
+	statstable = pd.DataFrame([wilcoxonsignedrank],
+		columns=['statistic','pvalue'],
+		index=['wsr'])
+	save_panda(statstable,'Stats_{0}.txt'.format(fileName))
 	ax0.plot(fillX,normCpGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
@@ -394,9 +393,15 @@ def main():
 				boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
 			probOptionstype = make_probabilites_for_direction(bool,'directionality')
 			spreadRandomtype,denseRandomtype=[],[]
-			for i in range(randomassignments):
-				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
-				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
+			for r in rFiles:
+				randomtypeFeatures = collect_element_coordinates(r)
+				directiontypeRandom = assign_directionality_from_arg_or_boundary(randomtypeFeatures,r)
+				if reverseComplement:
+					typedirWindow,typedirNames = sort_elements_by_directionality(directiontypeRandom,'directionality')
+				else:
+					typedirWindow,typedirNames = sliding_window_wrapper(directiontypeRandom['combineString'],directiontypeRandom['id'])
+# 				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
+# 				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
 				spreadRandomtype.append(typedirWindow)
 			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,boolNames)
 			graph_element_line_means(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
@@ -406,9 +411,15 @@ def main():
 		else:
 			allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
 		spreadRandom,denseRandom=[],[]
-		for i in range(randomassignments):
-			directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
-			randirWindow,randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
+		for r in rFiles:
+			randomFeatures = collect_element_coordinates(r)
+			directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
+			if reverseComplement:
+				randirWindow,randirNames = sort_elements_by_directionality(directionRandom,'directionality')
+			else:
+				randirWindow,randirNames = sliding_window_wrapper(directionRandom['combineString'],directionRandom['id'])
+# 			directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
+# 			randirWindow,randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
 			spreadRandom.append(randirWindow)
 		denseRandom = sliding_window_df_to_collect_all_random(spreadRandom,allNames)
 		graph_element_line_means(allWindow,allNames,'all_{0}'.format(paramlabels),denseRandom)
