@@ -304,7 +304,7 @@ def graph_element_line_means(dfWindow,names,fileName,denseRandom):
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(1,1,height_ratios=[1])
 	gs.update(hspace=.8)
-	pp = PdfPages('Fangs_{0}.pdf'.format(fileName))
+	pp = PdfPages('CpG_{0}.pdf'.format(fileName))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=10)
 	ax0 = plt.subplot(gs[0,:])
