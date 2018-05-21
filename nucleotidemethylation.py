@@ -405,7 +405,7 @@ def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
 	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
 	return removedups
 
-# format features for graphing
+# format uce features for graphing
 def format_data_frame_by_column(pdfeatures,countcol):
 	new_index = range(0,num)
 	pivotfeatures = pd.pivot_table(pdfeatures,index='methlocation',columns='Tissue',values=countcol)
@@ -416,6 +416,49 @@ def format_data_frame_by_column(pdfeatures,countcol):
 	transposefeatures = reindexfeatures.T
 	outfeatures = transposefeatures[transposefeatures.columns].astype(float)
 	return outfeatures
+
+# format the random features for graphing
+def format_random_data_frame(random,countcol):
+	collectgroup = []
+	for group in random['group'].unique():
+		grouprandom = random[random['group']==group]
+		formatrandom = format_data_frame_by_column(grouprandom,countcol)
+		collectgroup.append(formatrandom)
+	averagegroup = pd.concat([each.stack() for each in collectgroup],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
+	return averagegroup
+
+# run and print stats
+def run_and_print_stats(formatelement,formatrandom,element,pstat):
+	collectstats = []
+	averageelement = formatelement.mean()
+	averagerandom = formatrandom.mean()
+# 	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),formatrandom.values.flatten())
+	formatpval,statcoef,stattest = run_appropriate_test(averageelement,averagerandom)
+	statstable = pd.DataFrame(['loccount','whole_set',formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstable)
+# 	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(formatelement.loc[:,:plotLineLocationOne].values.flatten(),formatelement.loc[:,plotLineLocationTwo:].values.flatten())
+	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(averageelement.loc[:plotLineLocationOne],averageelement.loc[plotLineLocationTwo:])
+	statstableelement = pd.DataFrame(['loccount','element',formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstableelement)
+# 	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(formatrandom.loc[:,:plotLineLocationOne].values.flatten(),formatrandom.loc[:,plotLineLocationTwo:].values.flatten())
+	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(averagerandom.loc[:plotLineLocationOne],averagerandom.loc[plotLineLocationTwo:].values.flatten())
+	statstablerandom = pd.DataFrame(['loccount','random',formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstablerandom)
+	for tissue in element['Tissue'].unique():
+		tissueelement = formatelement.loc[tissue]
+		tissuerandom = formatrandom.loc[tissue]
+		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
+		statstable = pd.DataFrame(['loccount','{0}_whole_set'.format(tissue),formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstable)
+		formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(tissueelement.loc[:plotLineLocationOne].values.flatten(),tissueelement.loc[plotLineLocationTwo:].values.flatten())
+		statstableelement = pd.DataFrame(['loccount','{0}_element'.format(tissue),formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstableelement)
+		formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(tissuerandom.loc[:plotLineLocationOne].values.flatten(),tissuerandom.loc[plotLineLocationTwo:].values.flatten())
+		statstablerandom = pd.DataFrame(['loccount','{0}_random'.format(tissue),formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstablerandom)
+	catstat = pd.concat(collectstats,axis=1)
+	catstat.reset_index(drop=True,inplace=True)
+	save_panda(catstat.T,'{0}.txt'.format(pstat))
 
 # Make graphs for fangs
 def graph_methylation(pdfeatures,filelabel):
@@ -437,37 +480,8 @@ def graph_methylation(pdfeatures,filelabel):
 	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
 	element,random = seperate_elements_and_random(removedups,'group','element')
 	formatelement = format_data_frame_by_column(element,'countlocation')
-	collectgroup = []
-	for group in random['group'].unique():
-		grouprandom = random[random['group']==group]
-		formatrandom = format_data_frame_by_column(grouprandom,'countlocation')
-		collectgroup.append(formatrandom)
-	averagegroup = pd.concat([each.stack() for each in collectgroup],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
-	collectstats = []
-	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),averagegroup.values.flatten())
-	statstable = pd.DataFrame(['loccount','whole set',formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
-	collectstats.append(statstable)
-	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(formatelement.loc[:,:plotLineLocationOne].values.flatten(),formatelement.loc[:,plotLineLocationTwo:].values.flatten())
-	statstableelement = pd.DataFrame(['loccount','element',formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
-	collectstats.append(statstableelement)
-	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(averagegroup.loc[:,:plotLineLocationOne].values.flatten(),averagegroup.loc[:,plotLineLocationTwo:].values.flatten())
-	statstablerandom = pd.DataFrame(['loccount','random',formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
-	collectstats.append(statstablerandom)
-	for tissue in element['Tissue'].unique():
-		tissueelement = formatelement.loc[tissue]
-		tissuerandom = formatrandom.loc[tissue]
-		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
-		statstable = pd.DataFrame(['loccount',tissue,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
-		collectstats.append(statstable)
-		formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(tissueelement.loc[:plotLineLocationOne].values.flatten(),tissueelement.loc[plotLineLocationTwo:].values.flatten())
-		statstableelement = pd.DataFrame(['loccount','{0}_element'.format(tissue),formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
-		collectstats.append(statstableelement)
-		formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(tissuerandom.loc[:plotLineLocationOne].values.flatten(),tissuerandom.loc[plotLineLocationTwo:].values.flatten())
-		statstablerandom = pd.DataFrame(['loccount','{0}_random'.format(tissue),formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
-		collectstats.append(statstablerandom)
-	catstat = pd.concat(collectstats,axis=1)
-	catstat.reset_index(drop=True,inplace=True)
-	save_panda(catstat.T,'{0}.txt'.format(pstat))
+	formatrandom = format_random_data_frame(random,'countlocation')
+	run_and_print_stats(formatelement,formatrandom,element,pstat)
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
@@ -484,7 +498,7 @@ def graph_methylation(pdfeatures,filelabel):
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax1 = plt.subplot(gs[0,:])
-	heatmap1 = sns.heatmap(averagegroup,cmap='RdPu',ax=ax1,xticklabels=100)
+	heatmap1 = sns.heatmap(formatrandom,cmap='RdPu',ax=ax1,xticklabels=100)
 	ax1.set_ylabel('Tissue',size=8)
 	ax1.set_xlabel('Location',size=6)
 	ax1.tick_params(labelsize=8)
