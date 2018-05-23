@@ -262,14 +262,14 @@ def graph_element_line_means_random_below(dfWindow,names,fileName):
 # 	downstreamelement = ATgroup.loc[:,centerelementpoint:plotLineLocationFour].mean()
 # 	wilcoxonsignedrank = ss.wilcoxon(upstreamelement,downstreamelement)
 # 	wilcoxonsignedrankrandom = ss.wilcoxon(upstreamrandom,downstreamrandom)
-# 	statstable = pd.DataFrame([wilcoxonsignedrank,wilcoxonsignedrankrandom],
+# 	statstable = pd.DataFrame([wilcoxonsignedrank,wilcoxonsignedrankrandom]
 # 		columns=['statistic','pvalue'],
 # 		index=['wsr-element','wsr-random'])
 # 	save_panda(statstable,'Stats_{0}.txt'.format(fileName))
-	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#ff0045')
-	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#db00cc')
-	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#6b4dff')
-	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#ab00ff')
+	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#f4c88b')#ff0045
+	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#a47288')#db00cc
+	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#ae9ea1')#6b4dff
+	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#ff94b8')#ab00ff
 	ax0.set_ylabel('% Nucleotide Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
 	ax0.legend()
@@ -282,7 +282,7 @@ def graph_element_line_means_random_below(dfWindow,names,fileName):
 		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#c5969d')
 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.hlines(y=33,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+		plot.hlines(y=34,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
 		plot.text(32,34,'{0}bp sliding window'.format(window),size=12)
 	sns.despine()
 	pp.savefig()
@@ -299,7 +299,6 @@ def main():
 			print 'Now running {0} elements'.format(type)
 			bool = (rangeFeatures[rangeFeatures['type'] == type])
 			boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
-			probOptionstype = make_probabilites_for_direction(bool,'directionality')
 			graph_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels))
 	else:
 		allWindow,allNames = sliding_window_wrapper(rangeFeatures['combineString'],rangeFeatures['id'])
