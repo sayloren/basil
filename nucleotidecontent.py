@@ -250,6 +250,10 @@ def save_panda(pdData, strFilename):
 def graph_element_line_means_random_below(dfWindow,names,fileName):
 	set_ploting_parameters()
 	Amean,Cmean,Gmean,Tmean,totalnumberelements = collect_nucleotide_mean(dfWindow,names)
+
+	datatable = pd.DataFrame([Amean,Cmean,Gmean,Tmean],index=['A','C','G','T'])
+	save_panda(datatable.T,'Data_Nuccontent_{0}.txt'.format(fileName))
+
 	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
 	sns.set_style('ticks')
 	gs = gridspec.GridSpec(1,1,height_ratios=[1])#,1

@@ -326,7 +326,11 @@ def graph_element_line_means_random_below(dfWindow,names,fileName,denseRandom): 
 	statstable = pd.DataFrame([wilcoxonsignedrank,wilcoxonsignedrankrandom],
 		columns=['statistic','pvalue'],
 		index=['wsr-element','wsr-random'])
-	save_panda(statstable,'Stats_{0}.txt'.format(fileName))
+	save_panda(statstable,'Stats_ATcontent_{0}.txt'.format(fileName))
+
+	datatable = pd.DataFrame([ATmean,ranATmean],index=['Element','Random'])
+	save_panda(datatable.T,'Data_ATcontent_{0}.txt'.format(fileName))
+
 	ax0.plot(fillX,ATmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)

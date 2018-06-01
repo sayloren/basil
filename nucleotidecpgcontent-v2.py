@@ -313,12 +313,16 @@ def graph_element_line_means(dfWindow,names,fileName,denseRandom):
 	ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
 	rantotalCGmean = ranCmean+ranGmean
 	rannormCpGmean = ranCpGmean/rantotalCGmean
+
+	datatable = pd.DataFrame([normCpGmean,rannormCpGmean],index=['Element','Random'])
+	save_panda(datatable.T,'Data_CpGcontent_{0}.txt'.format(fileName))
+
 	ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#c5969d')
 	wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
 	statstable = pd.DataFrame([wilcoxonsignedrank],
 		columns=['statistic','pvalue'],
 		index=['wsr'])
-	save_panda(statstable,'Stats_{0}.txt'.format(fileName))
+	save_panda(statstable,'Stats_CpGcontent_{0}.txt'.format(fileName))
 	ax0.plot(fillX,normCpGmean,linewidth=plotlinesize,label='Element',color='#8ba6e9')
 	ax0.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)

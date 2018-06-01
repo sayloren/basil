@@ -432,15 +432,12 @@ def run_and_print_stats(formatelement,formatrandom,element,pstat):
 	collectstats = []
 	averageelement = formatelement.mean()
 	averagerandom = formatrandom.mean()
-# 	formatpval,statcoef,stattest = run_appropriate_test(formatelement.values.flatten(),formatrandom.values.flatten())
 	formatpval,statcoef,stattest = run_appropriate_test(averageelement,averagerandom)
 	statstable = pd.DataFrame(['loccount','whole_set',formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstable)
-# 	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(formatelement.loc[:,:plotLineLocationOne].values.flatten(),formatelement.loc[:,plotLineLocationTwo:].values.flatten())
 	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(averageelement.loc[:plotLineLocationOne],averageelement.loc[plotLineLocationTwo:])
 	statstableelement = pd.DataFrame(['loccount','element',formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstableelement)
-# 	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(formatrandom.loc[:,:plotLineLocationOne].values.flatten(),formatrandom.loc[:,plotLineLocationTwo:].values.flatten())
 	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(averagerandom.loc[:plotLineLocationOne],averagerandom.loc[plotLineLocationTwo:].values.flatten())
 	statstablerandom = pd.DataFrame(['loccount','random',formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
 	collectstats.append(statstablerandom)
@@ -482,6 +479,15 @@ def graph_methylation(pdfeatures,filelabel):
 	formatelement = format_data_frame_by_column(element,'countlocation')
 	formatrandom = format_random_data_frame(random,'countlocation')
 	run_and_print_stats(formatelement,formatrandom,element,pstat)
+	
+	outformatelement = formatelement.T
+	outformatelement.columns = [str(col) + '_Element' for col in outformatelement.columns]
+	outformatrandom = formatrandom.T
+	outformatrandom.columns = [str(col) + '_Random' for col in outformatrandom.columns]
+	
+	datatable = pd.concat([outformatelement,outformatrandom],axis=1)
+	save_panda(datatable,'Data_MethFlanks_{0}.txt'.format(filelabel))
+	
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
 	ax0 = plt.subplot(gs[0,:])
