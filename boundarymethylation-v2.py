@@ -452,7 +452,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
 		pp = PdfPages('Methylation_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 		pstat = 'Statistic_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
-	save_panda(sorted,'Data_MethFlanks_{0}.txt'.format(filelabel))
+	save_panda(sorted,'Data_MethBoundary_{0}.txt'.format(filelabel))
 	plt.figure(figsize=(14,7))
 	plt.suptitle(info,fontsize=16)
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
