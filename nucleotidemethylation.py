@@ -472,7 +472,7 @@ def graph_methylation(pdfeatures,filelabel):
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
 		pp = PdfPages('Methylation_Heatmap__{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 		pstat = 'Statistic_Heatmap__{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
-	plt.figure(figsize=(14,7))
+	plt.figure(figsize=(10,10))
 	plt.suptitle(info,fontsize=16)
 	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
 	element,random = seperate_elements_and_random(removedups,'group','element')

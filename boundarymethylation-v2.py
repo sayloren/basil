@@ -388,8 +388,8 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 	ax1 = plt.subplot(gs[1,:])
 	collectstats = []
 	if whichplot == 'boxplot':
-		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette)
-		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette)
+		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
+		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette,errwidth=1)
 		for label in ax0.get_xticklabels():
 			label.set_rotation(15)
 		for label in ax1.get_xticklabels():
@@ -453,7 +453,7 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 		pp = PdfPages('Methylation_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 		pstat = 'Statistic_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
 	save_panda(sorted,'Data_MethBoundary_{0}.txt'.format(filelabel))
-	plt.figure(figsize=(14,7))
+	plt.figure(figsize=(10,10))
 	plt.suptitle(info,fontsize=16)
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
 # 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
@@ -466,14 +466,14 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
 	collectstat = []
-	boundarypaletteelement = {'up stream':'#8ba6e9','down stream':'#adc0ef'}
-	boundarypaletterandom = {'up stream':'#c5969d','down stream':'#d6b5ba'}
+	boundarypaletteelement = {'up stream':'#afbfe3','down stream':'#6f84ba'}
+	boundarypaletterandom = {'up stream':'#d6b5ba','down stream':'#9d787d'}
 	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
-	strandpaletteelement = {'+':'#8ba6e9','-':'#adc0ef'}
-	strandpaletterandom = {'+':'#c5969d','-':'#d6b5ba'}
+	strandpaletteelement = {'+':'#afbfe3','-':'#6f84ba'}
+	strandpaletterandom = {'+':'#d6b5ba','-':'#9d787d'}
 	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
-	directionpaletteelement = {'AT rich':'#8ba6e9','AT poor':'#adc0ef','AT balanced':'#6174a3'}
-	directionpaletterandom = {'AT rich':'#c5969d','AT poor':'#d6b5ba','AT balanced':'#89696d'}
+	directionpaletteelement = {'AT rich':'#afbfe3','AT poor':'#6f84ba','AT balanced':'#465475'}
+	directionpaletterandom = {'AT rich':'#d6b5ba','AT poor':'#9d787d','AT balanced':'#624b4f'}
 	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
 	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot','husl','husl') 
 	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot','husl','husl')
