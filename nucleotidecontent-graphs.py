@@ -301,17 +301,24 @@ def graph_element_line_means_random_below(dfWindow,names,fileName):
 
 	run_stats_and_print(Amean,Cmean,Gmean,Tmean,fileName)
 
-	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#4d5c82')
-	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#adcfd9')
-	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#600c22')
-	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#d0abb0')
+	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#f4c88b')#ff0045
+	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#a47288')#db00cc
+	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#ae9ea1')#6b4dff
+	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#ff94b8')#ab00ff
 	ax0.set_ylabel('% Nucleotide Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
 	ax0.legend()
 	plt.xlim(0,num)
 	subplots = [ax0]
 	for plot in subplots:
+# 		plot.axvline(x=plotLineLocationOne,linewidth=.05,linestyle='dashed',color='#c5969d')
+# 		plot.axvline(x=plotLineLocationTwo,linewidth=.05,linestyle='dashed',color='#c5969d')
+# 		plot.axvline(x=plotLineLocationThree,linewidth=.05,linestyle='dashed',color='#c5969d')
+# 		plot.axvline(x=plotLineLocationFour,linewidth=.05,linestyle='dashed',color='#c5969d')
+# 		plot.set_yticks(plot.get_yticks()[::2])
 		plot.tick_params(axis='both',which='major',labelsize=20)
+# 		plot.hlines(y=34,xmin=20,xmax=31,linewidth=.5,color='#081d58',zorder=0)
+# 		plot.text(32,34,'{0}bp sliding window'.format(window),size=12)
 	sns.despine()
 	pp.savefig()
 	pp.close()

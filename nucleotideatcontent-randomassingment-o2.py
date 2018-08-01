@@ -1,8 +1,12 @@
 """
-Script to run mean nucleotide conent analysis
+Script to run mean AT conent analysis
 
 Wren Saylor
 April 2018
+
+To Do:
+streamline and remove excess columns
+.index len to break up large datasets
 
 Copyright 2017 Harvard University, Wu Lab
 
@@ -25,14 +29,7 @@ import pandas as pd
 from collections import defaultdict
 import pybedtools as pbt
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-import seaborn as sns
 import math
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as patches
 from scipy.stats import chisquare
 from scipy.interpolate import splrep, splev
 import scipy.stats as ss
@@ -43,14 +40,18 @@ def get_args():
 	parser = argparse.ArgumentParser(description="Description")
 	parser.add_argument("efile", type=str,help='A file containing a list of paths to the element files with unique names separated by newlines')
 	parser.add_argument("-l", "--labelcolumn",type=int,help='column in the element file where the label (exonic, intergenic, intronic) is')
+	parser.add_argument("-d", "--directionalitycolumn",type=int,help='column in the element file where directionality is, if not supplied will infer by AT content')
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
 	parser.add_argument("-t","--total",type=int,default="2200",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 	parser.add_argument("-i","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-w","--window",type=int,default="11",help='size of sliding window, should be an odd number, previous studies have used 11')
+	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
-	parser.add_argument('-p',"--plotlinesize",type=int,default=3,help='size of the line to plot')
+	parser.add_argument('-p',"--plotlinesize",type=int,default=2,help='size of the line to plot')
+	parser.add_argument("-n", "--numberrandomassignments",default=100,type=int,help='the number of times to to randomly assign direction, will only be used when "--reversecomplement" is "random"')
+	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
@@ -59,28 +60,36 @@ def set_global_variables(args):
 	global elementsize
 	global inuce
 	global window
+	global binDir
 	global halfwindow
 	global fillX
 	global eFiles
 	global labelcolumn
+	global directionalitycolumn
 	global sizeGenome
 	global faGenome
 	global nucList
 	global stringName
+	global randomassignments
 	global plotlinesize
+	global reverseComplement
 	num = args.total
 	elementsize = args.element
 	inuce = args.inset
 	window = args.window
+	binDir = args.bin
 	halfwindow = ((window/2)+1)
 	fillX = range(0,(num-window))
 	eFiles = args.efile
 	labelcolumn = args.labelcolumn
+	directionalitycolumn = args.directionalitycolumn
 	sizeGenome = args.genome
 	faGenome = args.fasta
-	nucList = ['A','C','G','T']
+	nucList = ['A','T']
 	stringName = args.stringname
+	randomassignments = args.numberrandomassignments
 	plotlinesize = args.plotlinesize
+	reverseComplement = args.reversecomplement
 	print 'collected global parameters'
 
 def set_ploting_parameters():
@@ -108,6 +117,8 @@ def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures = pd.read_table(btFeatures.fn, header=None)
 	midFeatures['middle'] = midFeatures.loc[:,1:2].mean(axis=1).astype(int)
 	midFeatures['size'] = midFeatures.loc[:,2].astype(int)-midFeatures.loc[:,1].astype(int)
+	if directionalitycolumn:
+		midFeatures['directionality'] = midFeatures.loc[:,directionalitycolumn]
 	if labelcolumn:
 		midFeatures['type'] = midFeatures.loc[:,labelcolumn]
 	midFeatures.insert(len(midFeatures.columns),'id',range(0,0+len(midFeatures)))
@@ -172,6 +183,37 @@ def collect_element_coordinates(fileName):
 	rangeFeatures = get_fasta_for_element_coordinates(subsetFeatures)
 	return rangeFeatures
 
+# Do the comparison between boundaries to get + - or =
+def calculate_nucleotides_at(element,size):
+	start = element[:size]
+	end = element[-size:]
+	perSize = []
+	perSize.append(eval('100*float(start.count("A") + start.count("T"))/len(start)'))
+	perSize.append(eval('100*float(end.count("A") + end.count("T"))/len(end)'))
+	return perSize
+
+# Directionality, as inferred by comparing first and last n base pairs from input parameters
+def compare_boundaries_size_n(element,size):
+# 	if motifdirectionality:
+# 		perSize = locate_boundary_with_motif(element,size,motifdirectionality)
+# 	else:
+	perSize = calculate_nucleotides_at(element,size)
+	# give + - = depending on which side has larger AT content
+	if perSize[0] > perSize[1]: outList = '+'
+	if perSize[1] > perSize[0]: outList = '-'
+	if perSize[1] == perSize[0]: outList = '='
+	return outList
+
+# With the results from compare_boundaries_size_n per each element, evaluate directionality into new column
+def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
+	if not directionalitycolumn:
+		rangeFeatures['feature'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','end']].values.astype(str).tolist()))
+		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
+		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
+		rangeFeatures=rangeFeatures.drop(['feature'],axis=1)
+		rangeFeatures=rangeFeatures.drop(['chr','start','end'],axis=1)
+	return rangeFeatures
+
 # run the sliding window for each nucleotide string
 def run_sliding_window_for_each_nucleotide_string(features,label):
 	outCollect = []
@@ -216,6 +258,19 @@ def convert_sliding_window_to_dataframe(outFlatten):
 	print 'converted sliding window to df'
 	return collectNucDF,names
 
+# Put all the random regions for each string search into one df, for stat collection
+def sliding_window_df_to_collect_all_random(collectRandom,allNames):
+	dictNames = {key:[] for key in allNames}
+	for random in collectRandom:
+		for df,key in zip(random,dictNames):
+			dictNames[key].append(df)
+	catCollect = []
+	for key,values in dictNames.items():
+		cat = pd.concat(values)
+		catCollect.append(cat)
+	print 'combined random sliding windows'
+	return catCollect
+
 # wrapper for running sliding window and converting it into easy to use format
 def sliding_window_wrapper(features,label):
 	outCollect = run_sliding_window_for_each_nucleotide_string(features,label)
@@ -224,113 +279,107 @@ def sliding_window_wrapper(features,label):
 	print 'retrieved sliding window data for nucleotides strings {0}'.format(names)
 	return outDataFrame,names
 
-# get nucleotide mean
-def get_nuc_group(dfwindow,names,nuc):
-	dflocation = [names.index(i) for i in names if nuc in i]
-	dfselect = [dfwindow[i] for i in dflocation]
-	dfconcat = pd.concat(dfselect,axis=1)
-	dfgroup = dfconcat.groupby(dfconcat.columns,axis=1).sum()
-	totalnumberelements = str(len(dfgroup.index))
-	dfmean = dfgroup.mean()
-	return dfmean,totalnumberelements
-
-# get means for all individual nucleotides
-def collect_nucleotide_mean(dfwindow,names):
-	Amean,Atotal = get_nuc_group(dfwindow,names,'A')
-	Cmean,Ctotal = get_nuc_group(dfwindow,names,'C')
-	Gmean,Gtotal = get_nuc_group(dfwindow,names,'G')
-	Tmean,Ttotal = get_nuc_group(dfwindow,names,'T')
-	return Amean,Cmean,Gmean,Tmean,Ttotal
+# get group, mean and standard deviation for AT
+def collect_sum_two_nucleotides(dfWindow,names,nuc1,nuc2):
+	ATNames = [names.index(i) for i in names if nuc1 in i or nuc2 in i]
+	ATDataFrames = [dfWindow[i] for i in ATNames]
+	ATconcat = pd.concat(ATDataFrames,axis=1)
+	ATgroup = ATconcat.groupby(ATconcat.columns,axis=1).sum()
+	ATmean = ATgroup.mean()
+	ATstd = ATgroup.std()
+	print 'summed a and t for graph'
+	return ATgroup, ATmean, ATstd
 
 # save panda
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
-# stats
-def run_stats_and_print(Amean,Cmean,Gmean,Tmean,fileName):
-	wilcoxonsignedrankACtotal = ss.wilcoxon(Amean,Cmean)
-	wilcoxonsignedrankAGtotal = ss.wilcoxon(Amean,Gmean)
-	wilcoxonsignedrankATtotal = ss.wilcoxon(Amean,Tmean)
-	wilcoxonsignedrankCGtotal = ss.wilcoxon(Cmean,Gmean)
-	wilcoxonsignedrankCTtotal = ss.wilcoxon(Cmean,Tmean)
-	wilcoxonsignedrankGTtotal = ss.wilcoxon(Gmean,Tmean)
-	wilcoxonsignedrankAAboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankACboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankAGboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankATboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCAboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCCboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCGboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCTboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGAboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGCboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGGboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGTboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTAboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTCboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTGboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTTboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	statstable = pd.DataFrame([wilcoxonsignedrankACtotal,wilcoxonsignedrankAGtotal,wilcoxonsignedrankATtotal,wilcoxonsignedrankCGtotal,wilcoxonsignedrankCTtotal,wilcoxonsignedrankGTtotal,
-		wilcoxonsignedrankAAboundary,wilcoxonsignedrankACboundary,wilcoxonsignedrankAGboundary,wilcoxonsignedrankATboundary,
-		wilcoxonsignedrankCAboundary,wilcoxonsignedrankCCboundary,wilcoxonsignedrankCGboundary,wilcoxonsignedrankCTboundary,
-		wilcoxonsignedrankGAboundary,wilcoxonsignedrankGCboundary,wilcoxonsignedrankGGboundary,wilcoxonsignedrankGTboundary,
-		wilcoxonsignedrankTAboundary,wilcoxonsignedrankTCboundary,wilcoxonsignedrankTGboundary,wilcoxonsignedrankTTboundary],
-		columns=['statistic','pvalue'],
-		index=['A-C total','A-G total','A-T total','C-G total','C-T total','G-T total','A-A boundary','A-C boundary','A-G boundary','A-T boundary',
-		'C-A boundary','C-C boundary','C-G boundary','C-T boundary',
-		'G-A boundary','G-C boundary','G-G boundary','G-T boundary',
-		'T-A boundary','t-C boundary','T-G boundary','T-T boundary',])
-	save_panda(statstable,'Stats_Nuccontent_{0}.txt'.format(fileName))
-
 # graph
-def graph_element_line_means_random_below(dfWindow,names,fileName):
+def print_element_line_means_random_below(dfWindow,names,fileName,denseRandom): # Extra
 	set_ploting_parameters()
-	Amean,Cmean,Gmean,Tmean,totalnumberelements = collect_nucleotide_mean(dfWindow,names)
+	ATgroup,ATmean,ATstd = collect_sum_two_nucleotides(dfWindow,names,'A','T')
+	totalnumberelements = str(len(ATgroup.index))
+	ranATgroup,ranATmean,ranATstd = collect_sum_two_nucleotides(denseRandom,names,'A','T')
+	upstreamelement = ATgroup.loc[:,plotLineLocationThree:centerelementpoint].mean()
+	downstreamelement = ATgroup.loc[:,centerelementpoint:plotLineLocationFour].mean()
+	upstreamrandom = ranATgroup.loc[:,plotLineLocationThree:centerelementpoint].mean()
+	downstreamrandom = ranATgroup.loc[:,centerelementpoint:plotLineLocationFour].mean()
+	wilcoxonsignedrank = ss.wilcoxon(upstreamelement,downstreamelement)
+	wilcoxonsignedrankrandom = ss.wilcoxon(upstreamrandom,downstreamrandom)
+	statstable = pd.DataFrame([wilcoxonsignedrank,wilcoxonsignedrankrandom],
+		columns=['statistic','pvalue'],
+		index=['wsr-element','wsr-random'])
+	save_panda(statstable,'Stats_ATcontent_{0}.txt'.format(fileName))
+	datatable = pd.DataFrame([ATmean,ranATmean],index=['Element','Random'])
+	save_panda(datatable.T,'Data_ATcontent_{0}.txt'.format(fileName))
 
-	datatable = pd.DataFrame([Amean,Cmean,Gmean,Tmean],index=['A','C','G','T'])
-	save_panda(datatable.T,'Data_Nuccontent_{0}.txt'.format(fileName))
+# sliding window RCsorting
+def sort_sliding_window_by_directionality(negStr,posStr):
+	negStr['reverseComplement']=negStr.apply(lambda row: reverse_complement_dictionary(row['combineString']),axis=1)
+	negDF,negNames=sliding_window_wrapper(negStr['reverseComplement'],negStr['id'])
+	posDF,posNames=sliding_window_wrapper(posStr['combineString'],posStr['id'])
+	compWindow=[]
+	for x, y in zip(negDF,posDF):
+		tempCat=pd.concat([x,y],axis=1)
+		tempGroup=tempCat.groupby(tempCat.columns,axis=1).sum()
+		compWindow.append(tempGroup)
+	print 'ran sliding window for directionality sorted df'
+	return compWindow,negNames
 
-	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
-	sns.set_style('ticks')
-	gs = gridspec.GridSpec(1,1,height_ratios=[1])#,1
-	gs.update(hspace=.8)
-	pp = PdfPages('Nuc_{0}.pdf'.format(fileName))
-	plt.figure(figsize=(10,10))
-	plt.suptitle(info,fontsize=10)
-	ax0 = plt.subplot(gs[0,:])
+# separate and sort by plus and minus orientation
+def sort_elements_by_directionality(directionFeatures,columnCompare):
+	negStr = (directionFeatures[(directionFeatures[columnCompare] == '-')])
+	posStr = (directionFeatures[(directionFeatures[columnCompare] == '+')])
+	compWindow, compNames = sort_sliding_window_by_directionality(negStr,posStr)
+	return compWindow,compNames
 
-	run_stats_and_print(Amean,Cmean,Gmean,Tmean,fileName)
-
-	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#4d5c82')
-	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#adcfd9')
-	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#600c22')
-	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#d0abb0')
-	ax0.set_ylabel('% Nucleotide Content',size=16)
-	ax0.set_xlabel('Position (bp)',size=16)
-	ax0.legend()
-	plt.xlim(0,num)
-	subplots = [ax0]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=20)
-	sns.despine()
-	pp.savefig()
-	pp.close()
+# get the empirical probability for each direction classification
+def make_probabilites_for_direction(directionFeatures,probabilitycolumn):
+	lenAll = float(len(directionFeatures.index))
+	numPlus = (directionFeatures[probabilitycolumn] == '+').sum()/lenAll
+	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()/lenAll
+	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()/lenAll
+	probOptions = [numMinus,numPlus,numEqual]
+	print 'made probabilities for df: {0} for +, {1} for - and {2} for ='.format(numPlus,numMinus,numEqual)
+	return probOptions
 
 def main():
 	args = get_args()
 	set_global_variables(args)
-	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}'.format(elementsize,inuce,num,window,eFiles,stringName)
+	paramlabels = '{0}_{1}_{2}_{3}_{4}_{5}_{6}'.format(elementsize,inuce,num,binDir,window,eFiles,stringName)
 	rangeFeatures = collect_element_coordinates(eFiles)
+	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
+	dirOptions = ['-','+','=']
+	probOptions = make_probabilites_for_direction(directionFeatures,'directionality')
 	if labelcolumn:
-		typeList = rangeFeatures['type'].unique()
+		typeList = directionFeatures['type'].unique()
 		for type in typeList:
 			print 'Now running {0} elements'.format(type)
 			bool = (rangeFeatures[rangeFeatures['type'] == type])
-			boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
-			graph_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels))
+			if reverseComplement:
+				boolWindow,boolNames = sort_elements_by_directionality(bool,'directionality')
+			else:
+				boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
+			probOptionstype = make_probabilites_for_direction(bool,'directionality')
+			spreadRandomtype,denseRandomtype=[],[]
+			for i in range(randomassignments):
+				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
+				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
+				spreadRandomtype.append(typedirWindow)
+			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,boolNames)
+			print_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
 	else:
-		allWindow,allNames = sliding_window_wrapper(rangeFeatures['combineString'],rangeFeatures['id'])
-		graph_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels))
+		if reverseComplement:
+			allWindow,allNames = sort_elements_by_directionality(directionFeatures,'directionality')
+		else:
+			allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
+		spreadRandom,denseRandom=[],[]
+		for i in range(randomassignments):
+			directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
+			randirWindow,randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
+			spreadRandom.append(randirWindow)
+		denseRandom = sliding_window_df_to_collect_all_random(spreadRandom,allNames)
+		print_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels),denseRandom)
 
 if __name__ == "__main__":
 	main()

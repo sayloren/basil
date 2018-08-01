@@ -1,5 +1,5 @@
 """
-Script to run methylation analysis for flanks with heatmap
+Script to run methylation analysis as heatmap
 
 Wren Saylor
 March 2018
@@ -25,14 +25,7 @@ import pandas as pd
 from collections import defaultdict
 import pybedtools as pbt
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-import seaborn as sns
 import math
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as patches
 from scipy.stats import chisquare
 from scipy.interpolate import splrep, splev
 import scipy.stats as ss
@@ -50,7 +43,8 @@ def get_args():
 	parser.add_argument("-i", "--idcolumn",type=int,help='column in the element file where the id is')
 	parser.add_argument("-g","--genome",type=str, default="hg19.genome")
 	parser.add_argument("-f","--fasta",type=str,default="hg19.fa")
-	parser.add_argument("-p","--periphery",type=int,default="20",help='number bp from your boundary you want to include in the analysis')
+	parser.add_argument("-t","--total",type=int,default="2200",help='total size of region to look at (region + flanks), should be an even number, suggested to be at least triple your element')
+	parser.add_argument("-p","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-b","--bin",type=int,default="100",help='size of bins used to compare element ends and determine directionality')
 	parser.add_argument("-e","--element",type=int,help='size of your element (region without flanks), should be an even number, if not provided will use the smallest size of your input data')
 	parser.add_argument("-mu","--methylationthresholdpercentageupper",type=int, default="100",help='size to threshold percentage methylation data upper bound')
@@ -59,7 +53,6 @@ def get_args():
 	parser.add_argument("-ms","--combinemethylationsamples",action='store_true',help='whether to combine those samples with the same tissue/cell type or leave as seperate')
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
 	parser.add_argument('-c',"--reversecomplement",action='store_true',help='if you want the reverse complement to be plotted')
-	parser.add_argument("-hb","--histogrambins",type=int,default="20",help='')
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
@@ -81,8 +74,9 @@ def set_global_variables(args):
 	global stringName
 	global reverseComplement
 	global combinesamples
-	global histogrambins
-	periphery = args.periphery
+	global num
+	num = args.total
+	periphery = args.inset
 	binDir = args.bin
 	elementsize = args.element
 	methPerThreshupper = args.methylationthresholdpercentageupper
@@ -102,7 +96,21 @@ def set_global_variables(args):
 	stringName = args.stringname
 	reverseComplement = args.reversecomplement
 	combinesamples = args.combinemethylationsamples
-	histogrambins = args.histogrambins
+
+def set_ploting_parameters():
+	# Locations for plotting with sliding window
+	global plotLineLocationOne # upstream element boundary
+	global plotLineLocationTwo # downstream element boundary
+	global plotLineLocationThree # upstream element inset
+	global plotLineLocationFour # downstream element inset
+	plotLineLocationOne = ((num-uce)/2)+periphery
+	plotLineLocationTwo = ((num-uce)/2)+(uce-periphery)
+	plotLineLocationThree = (num-uce)/2
+	plotLineLocationFour = ((num-uce)/2)+uce
+	global centerelementpoint
+	centerelementpoint = ((num-uce)/2)+(uce/2)
+	print 'center point', centerelementpoint
+	print 'set plotting parameters'
 
 # get bt features
 def get_bedtools_features(strFileName):
@@ -111,6 +119,7 @@ def get_bedtools_features(strFileName):
 # get the correct range for fang evaluation
 def collect_coordinates_for_element_positions(btFeatures):
 	midFeatures = pd.read_table(btFeatures.fn, header=None)
+	midFeatures['middle'] = midFeatures.loc[:,1:2].mean(axis=1).astype(int)
 	midFeatures['chr'] = midFeatures.loc[:,0]
 	midFeatures['start'] = midFeatures.loc[:,1]
 	midFeatures['end'] = midFeatures.loc[:,2]
@@ -124,10 +133,6 @@ def collect_coordinates_for_element_positions(btFeatures):
 			uce = getmin
 		else:
 			uce = getmin + 1
-	midFeatures['startup'] = midFeatures.loc[:,1] - periphery
-	midFeatures['startdown'] = midFeatures.loc[:,1] + periphery
-	midFeatures['endup'] = midFeatures.loc[:,2] - periphery
-	midFeatures['enddown'] = midFeatures.loc[:,2] + periphery
 	if idcolumn:
 		midFeatures['id'] = midFeatures.loc[:,idcolumn]
 	else:
@@ -136,14 +141,28 @@ def collect_coordinates_for_element_positions(btFeatures):
 		midFeatures['type'] = midFeatures.loc[:,labelcolumn]
 	if directionalitycolumn:
 		midFeatures['directionality'] = midFeatures.loc[:,directionalitycolumn]
+	global flankSize
+	flankSize = (num - uce)/2
+	global inregion
+	inregion = uce-(periphery*2)
+	midFeatures['sCenter'] = midFeatures['middle'].astype(int) - (inregion/2)
+	midFeatures['eCenter'] = midFeatures['middle'].astype(int) + (inregion/2)
+	midFeatures['sEdge'] = midFeatures['start'].astype(int) + periphery
+	midFeatures['eEdge'] = midFeatures['end'].astype(int) - periphery
+	midFeatures['sBoundary'] = midFeatures['start'].astype(int) - flankSize
+	midFeatures['eBoundary'] = midFeatures['end'].astype(int) + flankSize
 	return midFeatures
 
 # get the strings for sliding window regions
 def get_fasta_for_element_coordinates(rangeFeatures):#rangeFeatures,faGenome
-	rangeFeatures['upstreamsequence'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','startup','startdown']].values.astype(str).tolist()))
-	rangeFeatures['upstreamsequence'] = rangeFeatures['upstreamsequence'].str.upper()
-	rangeFeatures['downstreamsequence'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','endup','enddown']].values.astype(str).tolist()))
-	rangeFeatures['downstreamsequence'] = rangeFeatures['downstreamsequence'].str.upper()
+	rangeFeatures['sBoundarySeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','sBoundary','start']].values.astype(str).tolist()))
+	rangeFeatures['sEdgeSeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','start','sEdge']].values.astype(str).tolist()))
+	rangeFeatures['MiddleSeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','sCenter','eCenter']].values.astype(str).tolist()))
+	rangeFeatures['eEdgeSeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','eEdge','end']].values.astype(str).tolist()))
+	rangeFeatures['eBoundarySeq'] = get_just_fasta_sequence_for_feature(get_bedtools_features(rangeFeatures[['chr','end','eBoundary']].values.astype(str).tolist()))
+	rangeFeatures['combineString'] = rangeFeatures['sBoundarySeq'].astype(str) + rangeFeatures['sEdgeSeq'].astype(str) + rangeFeatures['MiddleSeq'].astype(str) + rangeFeatures['eEdgeSeq'].astype(str) + rangeFeatures['eBoundarySeq'].astype(str)
+	rangeFeatures['combineString'] = rangeFeatures['combineString'].str.upper()
+	rangeFeatures=rangeFeatures.drop(['sBoundarySeq','sEdgeSeq','MiddleSeq','eEdgeSeq','eBoundarySeq'],axis=1)
 	return rangeFeatures
 
 # used in get_fasta_for_element_coordinates to extract just the fasta strings
@@ -181,6 +200,7 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 		rangeFeatures['feature'] = rangeFeatures['feature'].str.upper()
 		rangeFeatures['directionality'] = rangeFeatures.apply(lambda row: (compare_boundaries_size_n(row['feature'],binDir)),axis=1)
 		numval = rangeFeatures['directionality'].value_counts()
+		rangeFeatures.drop(labels='feature',axis=1,inplace=True)
 	print '{0} in {1}'.format(numval,fileName)
 	return rangeFeatures
 
@@ -210,26 +230,24 @@ def threshold_methylation_data(methFeatures,methName):
 	return btmethThresh
 
 # Intersect regions from the methylation data with element regions
-def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,column,boundary,subtractcolumn):
+def intersect_methylation_data(btFeatures,meFeature,meName,eStart,eEnd,addvalue):
 	initiallength = len(meFeature)
-	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id',subtractcolumn]].values.astype(str).tolist(),wb=True,wa=True)
+	intersectboundary = meFeature.intersect(btFeatures[['chr',eStart,eEnd,'id']].values.astype(str).tolist(),wb=True,wa=True)
 	checklength = len(intersectboundary)
 	print 'there were {0} intersections out of {1} in {2}'.format(checklength,initiallength,meName)
 	if len(intersectboundary) != 0:
 		pdmeth=convert_bedtool_to_panda(intersectboundary)
-		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr','estart','estop','id','subtract']
+		pdmeth.columns = ['mchr','mstart','mstop','coverage','percentage','chr','estart','estop','id']
 		pdmeth['strand'] = get_just_fasta_sequence_for_feature(get_bedtools_features(pdmeth[['mchr','mstart','mstop']].values.astype(str).tolist()))
 		pdmeth['strand'] = pdmeth['strand'].str.upper()
-		pdmeth['methlocation'] = pdmeth['subtract'].astype(int)-pdmeth['mstart'].astype(int)
+		pdmeth['methlocation'] = pdmeth['estop'].astype(int)-pdmeth['mstart'].astype(int)+addvalue
 		outmeth = pdmeth[['chr','mstart','mstop','estart','estop','id','percentage','methlocation','strand']]
 		outmeth['Tissue'] = meName.split(".")[0]
-		subfeatures = btFeatures[['id','directionality',column]]
+		subfeatures = btFeatures[['id','directionality']]
 		merge = pd.merge(outmeth,subfeatures,how='left',on='id')
-		merge['boundary'] = boundary
-		sortoutmeth = merge[['chr','id','directionality','methlocation','percentage','strand','boundary','Tissue']]
+		sortoutmeth = merge[['chr','id','directionality','methlocation','percentage','strand','Tissue']]
 	else:
 		sortoutmeth = pd.DataFrame(np.nan,index=[0],columns=['chr','id','directionality','methlocation','percentage','strand'])
-		sortoutmeth['boundary'] = boundary
 		sortoutmeth['Tissue'] = meName.split(".")[0]
 	return sortoutmeth
 
@@ -239,18 +257,19 @@ def collect_methylation_data_by_element(pdfeatures):
 	for methname in mFiles:
 		mfeatures=get_bedtools_features(methname)
 		pdthresh=threshold_methylation_data(mfeatures,methname)
-		uintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'startup','startdown','upstreamsequence','up stream','start')
-		dintersect=intersect_methylation_data(pdfeatures,pdthresh,methname,'endup','enddown','downstreamsequence','down stream','end')
-		uinvert=invert_location(uintersect)
-		capture.append(uinvert)
-		capture.append(dintersect)
+		upboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'sBoundary','sEdge',0)
+		middle=intersect_methylation_data(pdfeatures,pdthresh,methname,'sCenter','eCenter',flankSize+periphery)
+		downboundary=intersect_methylation_data(pdfeatures,pdthresh,methname,'eEdge','eBoundary',flankSize+(uce-periphery))
+		capture.append(upboundary)
+		capture.append(middle)
+		capture.append(downboundary)
 	totalconcat = pd.concat(capture)
 	totalconcat.reset_index(drop=True,inplace=True)
 	return totalconcat
 
 # invert methlocation column
 def invert_location(pdfeatures):
-	originalRange = range(-periphery,periphery+1)#range(0,periphery*2)
+	originalRange = range(0,num)#-periphery,periphery+1
 	reverseRange = originalRange[::-1]
 	rangeDict = dict(zip(originalRange,reverseRange))
 	pdfeatures['newmethlocation'] = pdfeatures.loc[:,'methlocation'].map(rangeDict)
@@ -262,11 +281,9 @@ def invert_location(pdfeatures):
 def negative_directionality_columns_to_modify(negFeatures):
 	invFeatures = invert_location(negFeatures)
 	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
-	boundaryDict = {'up stream':'down stream','down stream':'up stream'}
-	invFeatures['newboundary'] = invFeatures.loc[:,'boundary'].map(boundaryDict)
 	invFeatures['newstrand'] = invFeatures.loc[:,'strand'].map(seqDict)
-	newnegFeatures = invFeatures[['chr','id','directionality','methlocation','percentage','newstrand','newboundary','Tissue','group']]
-	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','strand','boundary','Tissue','group']
+	newnegFeatures = invFeatures[['chr','id','directionality','methlocation','percentage','newstrand','Tissue','group']]
+	newnegFeatures.columns = ['chr','id','directionality','methlocation','percentage','strand','Tissue','group']
 	return newnegFeatures
 
 # Separate on plus and minus orientation, rcsort and return methylation
@@ -287,21 +304,26 @@ def collect_total_avail_cpg_in_column(btFeatures,column):
 	btFeatures['cgcount'] = btFeatures.apply(lambda row: (row[column].count("G")+row[column].count("C")),axis=1)
 	return btFeatures['cpgcount'].sum(),btFeatures['cgcount'].sum()
 
+# get the reverse complement
+def reverse_complement_dictionary(sequence):
+	seqDict = {'A':'T','T':'A','C':'G','G':'C','N':'N'}
+	return "".join([seqDict[base] for base in reversed(sequence)])
+
 # collect the values for up/down/rev up/rev down stream total cpg counts
 def collect_total_avail_cpg_values(btFeatures):
-	upcpg,upcg = collect_total_avail_cpg_in_column(btFeatures,'upstreamsequence')
-	downcpg,downcg = collect_total_avail_cpg_in_column(btFeatures,'downstreamsequence')
+	cpg,cg = collect_total_avail_cpg_in_column(btFeatures,'combineString')
 	if not btFeatures['directionality'].isnull().all():
 		negFeatures = (btFeatures.loc[btFeatures['directionality']=='-'])
 		nonFeatures = btFeatures.loc[btFeatures['directionality']!='-']
-		newnegFeatures = negFeatures.rename(columns={'upstreamsequence':'downstreamsequence','downstreamsequence':'upstreamsequence'})
+		negFeatures['reverseComplement']=negFeatures.apply(lambda row: reverse_complement_dictionary(row['combineString']),axis=1)
+		negFeatures.drop(labels='combineString',axis=1,inplace=True)
+		newnegFeatures = negFeatures.rename(columns={'reverseComplement':'combineString'})
 		revFeatures = pd.concat([newnegFeatures,nonFeatures])
-		revupcpg,revupcg = collect_total_avail_cpg_in_column(revFeatures,'upstreamsequence')
-		revdowncpg,revdowncg = collect_total_avail_cpg_in_column(revFeatures,'downstreamsequence')
+		revcpg,revcg = collect_total_avail_cpg_in_column(revFeatures,'combineString')
 	else:
-		revupcpg,revdowncpg,revupcg,revdowncg=upcpg,downcpg,upcg,downcg
+		revcpg,revcg=cpg,cg
 		print 'There are no features with "-" directionality'
-	return upcpg,downcpg,revupcpg,revdowncpg,upcg,downcg,revupcg,revdowncg
+	return cpg,revcpg,cg,revcg
 
 # make the original input data frame
 def collect_input_data_frame(file):
@@ -311,26 +333,18 @@ def collect_input_data_frame(file):
 
 # run the whole series of steps to make the data frame for each set of elements to plot
 def run_whole_analysis_for_boundaries(pdfeatures,label):
-	upcpg,downcpg,revupcpg,revdowncpg,upcg,downcg,revupcg,revdowncg = collect_total_avail_cpg_values(pdfeatures)
+	cpg,revcpg,cg,revcg = collect_total_avail_cpg_values(pdfeatures)
 	allstream = collect_methylation_data_by_element(pdfeatures)
 	allstream['group'] = label
 	allstream['organization'] = 'unsorted'
-	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
-	allstream['cgsum'] = np.where(allstream['boundary'] == 'up stream',upcg,downcg)
+	allstream['cpgsum'] = cpg
+	allstream['cgsum'] = cg
 	allreverse = modify_negative_directionality_elements(allstream)
 	allreverse['group'] = label
 	allreverse['organization'] = 'rcsorted'
-	allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
-	allreverse['cgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcg,revdowncg)
+	allreverse['cpgsum'] = revcpg
+	allreverse['cgsum'] = revcg
 	return allstream,allreverse
-
-# count by feature for graphing
-def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
-	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
-	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
-	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
-	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
-	return removedups
 
 # separate the elements and the random regions
 def seperate_elements_and_random(pdfeatures,column,value):
@@ -361,141 +375,103 @@ def KSTest(aOverlapBP):
 
 # run ks test for normal distribution and choose appropriate stats test
 def run_appropriate_test(element,random):
-	if (len(element.index) == 0) or (len(random.index) ==0):
-		formatpval,statcoef,stattest='nan','nan','nan'
+	ksStat,KsPval,strKSresult = KSTest(element)
+	if strKSresult == 'Yes':
+		statcoef,statpval = stats.ttest_ind(element,random)
+		stattest = 'TTest'
+		formatpval = '{:.01e}'.format(statpval)
 	else:
-		ksStat,KsPval,strKSresult = KSTest(element)
-		if strKSresult == 'Yes':
-			statcoef,statpval = stats.ttest_ind(element,random)
-			stattest = 'TTest'
-			formatpval = '{:.01e}'.format(statpval)
-		else:
-			statcoef,statpval = stats.mannwhitneyu(element,random)
-			stattest = 'MannWhitneyUTest'
-			formatpval = '{:.01e}'.format(statpval)
+		statcoef,statpval = stats.mannwhitneyu(element,random)
+		stattest = 'MannWhitneyUTest'
+		formatpval = '{:.01e}'.format(statpval)
 	return formatpval,statcoef,stattest
 
 # save panda
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
-# plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpalette,randompalette):
-	element,random = seperate_elements_and_random(removedups,'group','element')
-	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
-	gs.update(hspace=.8)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
-	collectstats = []
-	if whichplot == 'boxplot':
-		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
-		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette,errwidth=1)
-		for label in ax0.get_xticklabels():
-			label.set_rotation(15)
-		for label in ax1.get_xticklabels():
-			label.set_rotation(15)
-		for bartype in element[hval].unique():
-			typeelement = element[element[hval]==bartype]
-			typerandom = random[random[hval]==bartype]
-			typefillnaelement = typeelement[yval].fillna(0)
-			typefillnarandom = typerandom[yval].fillna(0)
-			formatpvaltype,statcoeftype,stattesttype = run_appropriate_test(typefillnaelement,typefillnarandom)
-			statstable = pd.DataFrame([yval,bartype,formatpvaltype,statcoeftype,stattesttype],index=['count set','comparison group','p value','coefficient','stats test'])
-			collectstats.append(statstable)
-	else:
-		for tissue in element[hval].unique():
-			tissueelement = element[element[hval]==tissue]
-			tissuerandom = random[random[hval]==tissue]
-			tissueelement.dropna(axis=0,inplace=True)
-			tissuerandom.dropna(axis=0,inplace=True)
-			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)#,norm_hist=False
-		ax0.legend()
-		ax1.legend()
-	fillnaelement = element[yval].fillna(0)
-	fillnarandom = random[yval].fillna(0)
-	formatpval,statcoef,stattest = run_appropriate_test(fillnaelement,fillnarandom)
-	type = 'whole set'
-	statstable = pd.DataFrame([yval,type,formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
-	collectstats.append(statstable)
-	for tissue in element['Tissue'].unique():
-		tissueelement = element[element['Tissue']==tissue]
-		tissuerandom = random[random['Tissue']==tissue]
-		tissuefillnaelement = tissueelement[yval].fillna(0)
-		tissuefillnarandom = tissuerandom[yval].fillna(0)
-		tissueformatpval,tissuestatcoef,tissuestattest = run_appropriate_test(tissuefillnaelement,tissuefillnarandom)
-		statstable = pd.DataFrame([yval,tissue,tissueformatpval,tissuestatcoef,tissuestattest],index=['count set','comparison group','p value','coefficient','stats test'])
-		collectstats.append(statstable)
-	ax0.set_title("Ultraconserved Elements")
-	ax1.set_title("Random Regions")
-	subplots = [ax0,ax1]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel('Count Methylation',size=16)
-		plot.set_xlabel(setxlabel,fontsize=16)
-	sns.despine()
-	plt.savefig(pp,format='pdf')
-	return collectstats
+# count by feature for graphing
+def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
+	methsort = pdfeatures.sort_values(by=['Tissue','group',incol],ascending=True)
+	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
+	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
+	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
+	return removedups
 
-# Make graphs for fangs
-def graph_boundary_methylation(pdfeatures,filelabel):
-	methfiles = [(file.split("-")[0]) for file in mFiles]
-	methcount = Counter(methfiles)
-	info = str(filelabel)
-	sns.set_style('ticks')
-	sns.set_palette("husl",n_colors=len(pdfeatures['Tissue'].unique()))
-	if reverseComplement:
-		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
-		pp = PdfPages('Methylation_Boundary_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = 'Statistic_Boundary_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
-	else:
-		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
-		pp = PdfPages('Methylation_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = 'Statistic_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
-	save_panda(sorted,'Data_MethBoundary__{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-	plt.figure(figsize=(10,10))
-	plt.suptitle(info,fontsize=16)
-	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
-# 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
-	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
-	strandDict = {'C':'+','G':'-'}
-	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(strandDict)
-	removedupdir = group_and_count_data_frame_by_column(sorted,'directionality','dircount')
-	dirDict = {'+':'AT rich','-':'AT poor','=':'AT balanced'}
-	removedupdir['ATcontent'] = removedupdir.loc[:,'directionality'].map(dirDict)
-	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
-	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
-	collectstat = []
-	boundarypaletteelement = {'up stream':'#afbfe3','down stream':'#6f84ba'}
-	boundarypaletterandom = {'up stream':'#d6b5ba','down stream':'#9d787d'}
-	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
-	strandpaletteelement = {'+':'#afbfe3','-':'#6f84ba'}
-	strandpaletterandom = {'+':'#d6b5ba','-':'#9d787d'}
-	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
-	directionpaletteelement = {'AT rich':'#afbfe3','AT poor':'#6f84ba','AT balanced':'#465475'}
-	directionpaletterandom = {'AT rich':'#d6b5ba','AT poor':'#9d787d','AT balanced':'#624b4f'}
-	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
-	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot','husl','husl') 
-	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot','husl','husl')
-	collectstat.extend(statboundary)
-	collectstat.extend(statstrand)
-	collectstat.extend(statdirection)
-	collectstat.extend(statlocation)
-	collectstat.extend(statpercentage)
-	catstat = pd.concat(collectstat,axis=1)
+# format uce features for graphing
+def format_data_frame_by_column(pdfeatures,countcol):
+	new_index = range(0,num)
+	pivotfeatures = pd.pivot_table(pdfeatures,index='methlocation',columns='Tissue',values=countcol)
+	pivotfeatures.columns.name = None
+	reindexfeatures = pivotfeatures.reindex(new_index,fill_value=0)
+	reindexfeatures.fillna('0',inplace=True)
+	reindexfeatures.index.name = None
+	transposefeatures = reindexfeatures.T
+	outfeatures = transposefeatures[transposefeatures.columns].astype(float)
+	return outfeatures
+
+# format the random features for graphing
+def format_random_data_frame(random,countcol):
+	collectgroup = []
+	for group in random['group'].unique():
+		grouprandom = random[random['group']==group]
+		formatrandom = format_data_frame_by_column(grouprandom,countcol)
+		collectgroup.append(formatrandom)
+	averagegroup = pd.concat([each.stack() for each in collectgroup],axis=1).apply(lambda x:x.mean(),axis=1).unstack()
+	return averagegroup
+
+# run and print stats
+def run_and_print_stats(formatelement,formatrandom,element,pstat):
+	collectstats = []
+	averageelement = formatelement.mean()
+	averagerandom = formatrandom.mean()
+	formatpval,statcoef,stattest = run_appropriate_test(averageelement,averagerandom)
+	statstable = pd.DataFrame(['loccount','whole_set',formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstable)
+	formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(averageelement.loc[:plotLineLocationOne],averageelement.loc[plotLineLocationTwo:])
+	statstableelement = pd.DataFrame(['loccount','element',formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstableelement)
+	formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(averagerandom.loc[:plotLineLocationOne],averagerandom.loc[plotLineLocationTwo:].values.flatten())
+	statstablerandom = pd.DataFrame(['loccount','random',formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+	collectstats.append(statstablerandom)
+	for tissue in element['Tissue'].unique():
+		tissueelement = formatelement.loc[tissue]
+		tissuerandom = formatrandom.loc[tissue]
+		formatpval,statcoef,stattest = run_appropriate_test(tissueelement,tissuerandom)
+		statstable = pd.DataFrame(['loccount','{0}_whole_set'.format(tissue),formatpval,statcoef,stattest],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstable)
+		formatpvalelement,statcoefelement,stattestelement = run_appropriate_test(tissueelement.loc[:plotLineLocationOne].values.flatten(),tissueelement.loc[plotLineLocationTwo:].values.flatten())
+		statstableelement = pd.DataFrame(['loccount','{0}_element'.format(tissue),formatpvalelement,statcoefelement,stattestelement],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstableelement)
+		formatpvalrandom,statcoefrandom,stattestrandom = run_appropriate_test(tissuerandom.loc[:plotLineLocationOne].values.flatten(),tissuerandom.loc[plotLineLocationTwo:].values.flatten())
+		statstablerandom = pd.DataFrame(['loccount','{0}_random'.format(tissue),formatpvalrandom,statcoefrandom,stattestrandom],index=['count set','comparison group','p value','coefficient','stats test'])
+		collectstats.append(statstablerandom)
+	catstat = pd.concat(collectstats,axis=1)
 	catstat.reset_index(drop=True,inplace=True)
 	save_panda(catstat.T,'{0}.txt'.format(pstat))
 
-# 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
-# 	if combinesamples:
-# 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
-# 		methsort.drop(labels='Tissue',axis=1,inplace=True)
-# 		methsort.rename(columns={'newTissue':'Tissue'},inplace=True)
-# 	removedupid = group_data_frame_by_column(methsort,'id','idcount')
-# 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
-# 	removedupavailcg = group_data_frame_by_column(methsort,'createdcpg','createdcpgtest')
-# 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
-	pp.close()
+# Make graphs for fangs
+def print_methylation(pdfeatures,filelabel):
+	set_ploting_parameters()
+	methfiles = [(file.split("-")[0]) for file in mFiles]
+	methcount = Counter(methfiles)
+	if reverseComplement:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
+		pstat = 'Statistic_Heatmap_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
+	else:
+		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
+		pstat = 'Statistic_Heatmap_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
+	removedups = group_and_count_data_frame_by_column(pdfeatures,'methlocation','countlocation')
+	element,random = seperate_elements_and_random(removedups,'group','element')
+	formatelement = format_data_frame_by_column(element,'countlocation')
+	formatrandom = format_random_data_frame(random,'countlocation')
+	run_and_print_stats(formatelement,formatrandom,element,pstat)
+	outformatelement = formatelement.T
+	outformatelement.columns = [str(col) + '_Element' for col in outformatelement.columns]
+	outformatrandom = formatrandom.T
+	outformatrandom.columns = [str(col) + '_Random' for col in outformatrandom.columns]
+	datatable = pd.concat([outformatelement,outformatrandom],axis=1)
+	save_panda(datatable,'Data_MethFlanks_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 
 # run the whole series of steps through to graphing
 def run_whole_script_for_group(pdfeatures,rFiles,label):
@@ -515,7 +491,7 @@ def run_whole_script_for_group(pdfeatures,rFiles,label):
 		collect.append(ranreverse)
 		print 'collected data frame for {0}'.format(randomFile)
 	concat = pd.concat(collect)
-	graph_boundary_methylation(concat,'{0}'.format(label))
+	print_methylation(concat,'{0}'.format(label))
 
 def main():
 	args = get_args()

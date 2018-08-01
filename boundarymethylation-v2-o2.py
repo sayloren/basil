@@ -25,14 +25,7 @@ import pandas as pd
 from collections import defaultdict
 import pybedtools as pbt
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-import seaborn as sns
 import math
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as patches
 from scipy.stats import chisquare
 from scipy.interpolate import splrep, splev
 import scipy.stats as ss
@@ -380,20 +373,10 @@ def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
 # plot params
-def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpalette,randompalette):
+def set_plot_params(removedups,xval,yval,hval,setxlabel,whichplot,elementpalette,randompalette):
 	element,random = seperate_elements_and_random(removedups,'group','element')
-	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
-	gs.update(hspace=.8)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
 	collectstats = []
 	if whichplot == 'boxplot':
-		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
-		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette,errwidth=1)
-		for label in ax0.get_xticklabels():
-			label.set_rotation(15)
-		for label in ax1.get_xticklabels():
-			label.set_rotation(15)
 		for bartype in element[hval].unique():
 			typeelement = element[element[hval]==bartype]
 			typerandom = random[random[hval]==bartype]
@@ -408,10 +391,6 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 			tissuerandom = random[random[hval]==tissue]
 			tissueelement.dropna(axis=0,inplace=True)
 			tissuerandom.dropna(axis=0,inplace=True)
-			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)#,norm_hist=False
-		ax0.legend()
-		ax1.legend()
 	fillnaelement = element[yval].fillna(0)
 	fillnarandom = random[yval].fillna(0)
 	formatpval,statcoef,stattest = run_appropriate_test(fillnaelement,fillnarandom)
@@ -426,37 +405,20 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 		tissueformatpval,tissuestatcoef,tissuestattest = run_appropriate_test(tissuefillnaelement,tissuefillnarandom)
 		statstable = pd.DataFrame([yval,tissue,tissueformatpval,tissuestatcoef,tissuestattest],index=['count set','comparison group','p value','coefficient','stats test'])
 		collectstats.append(statstable)
-	ax0.set_title("Ultraconserved Elements")
-	ax1.set_title("Random Regions")
-	subplots = [ax0,ax1]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel('Count Methylation',size=16)
-		plot.set_xlabel(setxlabel,fontsize=16)
-	sns.despine()
-	plt.savefig(pp,format='pdf')
 	return collectstats
 
 # Make graphs for fangs
-def graph_boundary_methylation(pdfeatures,filelabel):
+def print_boundary_methylation(pdfeatures,filelabel):
 	methfiles = [(file.split("-")[0]) for file in mFiles]
 	methcount = Counter(methfiles)
-	info = str(filelabel)
-	sns.set_style('ticks')
-	sns.set_palette("husl",n_colors=len(pdfeatures['Tissue'].unique()))
 	if reverseComplement:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='rcsorted']
-		pp = PdfPages('Methylation_Boundary_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = 'Statistic_Boundary_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
+		pstat = 'Statistic_Boundary_ReverseComplementSorted_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
 	else:
 		sorted = pdfeatures.loc[pdfeatures['organization']=='unsorted']
-		pp = PdfPages('Methylation_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-		pstat = 'Statistic_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.pdf'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
-	save_panda(sorted,'Data_MethBoundary__{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
-	plt.figure(figsize=(10,10))
-	plt.suptitle(info,fontsize=16)
+		pstat = 'Statistic_Boundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh)
+	save_panda(sorted,'Data_MethBoundary_{0}_{1}_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt'.format(eFiles,stringName,filelabel,elementsize,binDir,periphery,methPerThreshlower,methPerThreshupper,methCovThresh))
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
-# 	removedupcpgper['percpgmeth'] = (removedupcpgper[outcol]/removedupcpgper['cpgsum'])*100.0
 	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
 	strandDict = {'C':'+','G':'-'}
 	removedupstrand['strandedness'] = removedupstrand.loc[:,'strand'].map(strandDict)
@@ -466,17 +428,17 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	removeduploc = group_and_count_data_frame_by_column(sorted,'methlocation','loccount')
 	removeduppercentage = group_and_count_data_frame_by_column(sorted,'percentage','percount')
 	collectstat = []
-	boundarypaletteelement = {'up stream':'#afbfe3','down stream':'#6f84ba'}
-	boundarypaletterandom = {'up stream':'#d6b5ba','down stream':'#9d787d'}
-	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary',pp,'Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
-	strandpaletteelement = {'+':'#afbfe3','-':'#6f84ba'}
-	strandpaletterandom = {'+':'#d6b5ba','-':'#9d787d'}
-	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
-	directionpaletteelement = {'AT rich':'#afbfe3','AT poor':'#6f84ba','AT balanced':'#465475'}
-	directionpaletterandom = {'AT rich':'#d6b5ba','AT poor':'#9d787d','AT balanced':'#624b4f'}
-	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
-	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot','husl','husl') 
-	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot','husl','husl')
+	boundarypaletteelement = {'up stream':'#8ba6e9','down stream':'#adc0ef'}
+	boundarypaletterandom = {'up stream':'#c5969d','down stream':'#d6b5ba'}
+	statboundary = set_plot_params(removedupcpgper,'Tissue','boundarycount','boundary','Tissue','boxplot',boundarypaletteelement,boundarypaletterandom)
+	strandpaletteelement = {'+':'#8ba6e9','-':'#adc0ef'}
+	strandpaletterandom = {'+':'#c5969d','-':'#d6b5ba'}
+	statstrand = set_plot_params(removedupstrand,'Tissue','strandcount','strandedness','Tissue','boxplot',strandpaletteelement,strandpaletterandom)
+	directionpaletteelement = {'AT rich':'#8ba6e9','AT poor':'#adc0ef','AT balanced':'#6174a3'}
+	directionpaletterandom = {'AT rich':'#c5969d','AT poor':'#d6b5ba','AT balanced':'#89696d'}
+	statdirection = set_plot_params(removedupdir,'Tissue','dircount','ATcontent','Tissue','boxplot',directionpaletteelement,directionpaletterandom)
+	statlocation = set_plot_params(removeduploc,'methlocation','loccount','Tissue','Distance from Boundary','distplot','husl','husl') 
+	statpercentage = set_plot_params(removeduppercentage,'percentage','percount','Tissue','Percentage','distplot','husl','husl')
 	collectstat.extend(statboundary)
 	collectstat.extend(statstrand)
 	collectstat.extend(statdirection)
@@ -485,17 +447,6 @@ def graph_boundary_methylation(pdfeatures,filelabel):
 	catstat = pd.concat(collectstat,axis=1)
 	catstat.reset_index(drop=True,inplace=True)
 	save_panda(catstat.T,'{0}.txt'.format(pstat))
-
-# 	methsort['createdcpg'] = (methsort['cpgsum']/methsort['cgsum'])*100.0
-# 	if combinesamples:
-# 		methsort['newTissue'] = methsort['Tissue'].str.extract('(^.*)[-].*?$',expand=True)
-# 		methsort.drop(labels='Tissue',axis=1,inplace=True)
-# 		methsort.rename(columns={'newTissue':'Tissue'},inplace=True)
-# 	removedupid = group_data_frame_by_column(methsort,'id','idcount')
-# 	boxplot_params(removedupid,'idcount','id',pp,'Count UCE ID Methylated') # needs work
-# 	removedupavailcg = group_data_frame_by_column(methsort,'createdcpg','createdcpgtest')
-# 	boxplot_params(removedupavailcg,'createdcpg','boundary',pp,'% C and G creating CpG')
-	pp.close()
 
 # run the whole series of steps through to graphing
 def run_whole_script_for_group(pdfeatures,rFiles,label):
@@ -515,7 +466,7 @@ def run_whole_script_for_group(pdfeatures,rFiles,label):
 		collect.append(ranreverse)
 		print 'collected data frame for {0}'.format(randomFile)
 	concat = pd.concat(collect)
-	graph_boundary_methylation(concat,'{0}'.format(label))
+	print_boundary_methylation(concat,'{0}'.format(label))
 
 def main():
 	args = get_args()

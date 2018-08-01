@@ -25,14 +25,7 @@ import pandas as pd
 from collections import defaultdict
 import pybedtools as pbt
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
-import matplotlib.pyplot as plt
-import seaborn as sns
 import math
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as patches
 from scipy.stats import chisquare
 from scipy.interpolate import splrep, splev
 import scipy.stats as ss
@@ -50,7 +43,7 @@ def get_args():
 	parser.add_argument("-i","--inset",type=int,default="50",help='size into your element from the boundaries, should be an even number')
 	parser.add_argument("-w","--window",type=int,default="11",help='size of sliding window, should be an odd number, previous studies have used 11')
 	parser.add_argument('-s',"--stringname",type=str,help='string to add to the outfile name')
-	parser.add_argument('-p',"--plotlinesize",type=int,default=3,help='size of the line to plot')
+	parser.add_argument('-p',"--plotlinesize",type=int,default=2,help='size of the line to plot')
 	return parser.parse_args()
 
 # set all args that will be used throughout the script
@@ -246,75 +239,12 @@ def collect_nucleotide_mean(dfwindow,names):
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
-# stats
-def run_stats_and_print(Amean,Cmean,Gmean,Tmean,fileName):
-	wilcoxonsignedrankACtotal = ss.wilcoxon(Amean,Cmean)
-	wilcoxonsignedrankAGtotal = ss.wilcoxon(Amean,Gmean)
-	wilcoxonsignedrankATtotal = ss.wilcoxon(Amean,Tmean)
-	wilcoxonsignedrankCGtotal = ss.wilcoxon(Cmean,Gmean)
-	wilcoxonsignedrankCTtotal = ss.wilcoxon(Cmean,Tmean)
-	wilcoxonsignedrankGTtotal = ss.wilcoxon(Gmean,Tmean)
-	wilcoxonsignedrankAAboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankACboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankAGboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankATboundary = ss.wilcoxon(Amean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCAboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCCboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCGboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankCTboundary = ss.wilcoxon(Cmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGAboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGCboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGGboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankGTboundary = ss.wilcoxon(Gmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTAboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Amean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTCboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Cmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTGboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Gmean.loc[centerelementpoint:plotLineLocationFour])
-	wilcoxonsignedrankTTboundary = ss.wilcoxon(Tmean.loc[plotLineLocationThree:centerelementpoint],Tmean.loc[centerelementpoint:plotLineLocationFour])
-	statstable = pd.DataFrame([wilcoxonsignedrankACtotal,wilcoxonsignedrankAGtotal,wilcoxonsignedrankATtotal,wilcoxonsignedrankCGtotal,wilcoxonsignedrankCTtotal,wilcoxonsignedrankGTtotal,
-		wilcoxonsignedrankAAboundary,wilcoxonsignedrankACboundary,wilcoxonsignedrankAGboundary,wilcoxonsignedrankATboundary,
-		wilcoxonsignedrankCAboundary,wilcoxonsignedrankCCboundary,wilcoxonsignedrankCGboundary,wilcoxonsignedrankCTboundary,
-		wilcoxonsignedrankGAboundary,wilcoxonsignedrankGCboundary,wilcoxonsignedrankGGboundary,wilcoxonsignedrankGTboundary,
-		wilcoxonsignedrankTAboundary,wilcoxonsignedrankTCboundary,wilcoxonsignedrankTGboundary,wilcoxonsignedrankTTboundary],
-		columns=['statistic','pvalue'],
-		index=['A-C total','A-G total','A-T total','C-G total','C-T total','G-T total','A-A boundary','A-C boundary','A-G boundary','A-T boundary',
-		'C-A boundary','C-C boundary','C-G boundary','C-T boundary',
-		'G-A boundary','G-C boundary','G-G boundary','G-T boundary',
-		'T-A boundary','t-C boundary','T-G boundary','T-T boundary',])
-	save_panda(statstable,'Stats_Nuccontent_{0}.txt'.format(fileName))
-
 # graph
-def graph_element_line_means_random_below(dfWindow,names,fileName):
+def print_element_line_means_random_below(dfWindow,names,fileName):
 	set_ploting_parameters()
 	Amean,Cmean,Gmean,Tmean,totalnumberelements = collect_nucleotide_mean(dfWindow,names)
-
 	datatable = pd.DataFrame([Amean,Cmean,Gmean,Tmean],index=['A','C','G','T'])
 	save_panda(datatable.T,'Data_Nuccontent_{0}.txt'.format(fileName))
-
-	info = str(fileName) + ', '+ totalnumberelements + ' - ' "UCES"
-	sns.set_style('ticks')
-	gs = gridspec.GridSpec(1,1,height_ratios=[1])#,1
-	gs.update(hspace=.8)
-	pp = PdfPages('Nuc_{0}.pdf'.format(fileName))
-	plt.figure(figsize=(10,10))
-	plt.suptitle(info,fontsize=10)
-	ax0 = plt.subplot(gs[0,:])
-
-	run_stats_and_print(Amean,Cmean,Gmean,Tmean,fileName)
-
-	ax0.plot(fillX,Amean,linewidth=plotlinesize,label='A',color='#4d5c82')
-	ax0.plot(fillX,Cmean,linewidth=plotlinesize,label='C',color='#adcfd9')
-	ax0.plot(fillX,Gmean,linewidth=plotlinesize,label='G',color='#600c22')
-	ax0.plot(fillX,Tmean,linewidth=plotlinesize,label='T',color='#d0abb0')
-	ax0.set_ylabel('% Nucleotide Content',size=16)
-	ax0.set_xlabel('Position (bp)',size=16)
-	ax0.legend()
-	plt.xlim(0,num)
-	subplots = [ax0]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=20)
-	sns.despine()
-	pp.savefig()
-	pp.close()
 
 def main():
 	args = get_args()
@@ -327,10 +257,10 @@ def main():
 			print 'Now running {0} elements'.format(type)
 			bool = (rangeFeatures[rangeFeatures['type'] == type])
 			boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
-			graph_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels))
+			print_element_line_means_random_below(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels))
 	else:
 		allWindow,allNames = sliding_window_wrapper(rangeFeatures['combineString'],rangeFeatures['id'])
-		graph_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels))
+		print_element_line_means_random_below(allWindow,allNames,'all_{0}'.format(paramlabels))
 
 if __name__ == "__main__":
 	main()
