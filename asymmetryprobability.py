@@ -227,7 +227,7 @@ def main():
 		directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
 		binRandom = collect_emperical_boundary_comparisons(directionRandom)
 		collectFeatures.append(binRandom)
-		collectName.append('Random_{0}'.format(rFiles))
+		collectName.append('Random')
 	paramlabels = '{0}_{1}'.format(binDir,eFiles)
 	graph_equal_boundary_probability(collectFeatures,collectName,paramlabels)
 
