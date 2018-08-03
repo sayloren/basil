@@ -222,12 +222,16 @@ def main():
 		directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,e)
 		binFeatures = collect_emperical_boundary_comparisons(directionFeatures)
 		collectFeatures.append(binFeatures)
+	collectRandom = []
 	for r in rFiles:
 		randomFeatures = collect_element_coordinates(r)
 		directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
 		binRandom = collect_emperical_boundary_comparisons(directionRandom)
-		collectFeatures.append(binRandom)
-		collectName.append('Random')
+		collecstRandom.append(binRandom)
+	concatRandom = pd.concat(collectRandom,axis=0)
+	aveRandom = concatRandom.groupby(by=concatRandom.columns, axis=1).mean()
+	collectFeatures.append(aveRandom)
+	collectName.append('Random')
 	paramlabels = '{0}_{1}'.format(binDir,eFiles)
 	graph_equal_boundary_probability(collectFeatures,collectName,paramlabels)
 
