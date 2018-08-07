@@ -146,7 +146,7 @@ def emperical_boundaries_for_increasing_bins_symbol(element,size):
 	return totalSteps
 
 # Get the actual spread of = in the data over increasing bin size
-def collect_emperical_boundary_comparisons(rangeFeatures):
+def collect_emperical_boundary_comparisons(rangeFeatures,name):
 	rangeAT = rangeFeatures.apply(lambda row: (emperical_boundaries_for_increasing_bins_percentage(row['feature'],binDir)),axis=1)
 	pdrangeAT = pd.DataFrame(rangeAT.values.tolist())
 	equalAT = rangeFeatures.apply(lambda row: (emperical_boundaries_for_increasing_bins_symbol(row['feature'],binDir)),axis=1)
@@ -159,14 +159,8 @@ def collect_emperical_boundary_comparisons(rangeFeatures):
 		outcollect.append(splitAT[column[0]])
 	outcat = pd.concat(outcollect,axis=1)
 	outcat /= 100 # convert to decimal
-	pdATCollectStartMin = outcat[[outcat.columns[0]]].min(axis=1)
-	pdATCollectEndMin = outcat[[outcat.columns[1]]].min(axis=1)
-	pdATCollectStartMax = outcat[[outcat.columns[0]]].max(axis=1)
-	pdATCollectEndMax = outcat[[outcat.columns[1]]].max(axis=1)
-	Min = pdATCollectStartMin * pdATCollectEndMin
-	Max = pdATCollectStartMax * pdATCollectEndMax
-	pdBins = pd.concat([Min,Max,equalCounts],axis=1)
-	pdBins.columns=['Min','Max','Equal']
+	pdBins = pd.concat([equalCounts],axis=1)
+	pdBins.columns=[name]
 	return pdBins
 
 # Compute the theoretical probability
@@ -194,15 +188,14 @@ def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
 # Graph the probability
-def graph_equal_boundary_probability(features,name,paramlabels):
+def graph_equal_boundary_probability(features,paramlabels):
 	yrange = numpy.arange(1,binDir*2)
 	equal = run_boundary_probability_calculation(yrange,0.5)
+	features['Theoretical'] = equal
 	sns.set_style('ticks')
 	sns.set_palette("husl",n_colors=8)
 	plt.figure(figsize=(3.5,3.5))
-	plt.plot(yrange,equal,linewidth=2,alpha=0.9,label='Theoretical')
-	for df,nm in zip(features,name):
-		plt.plot(yrange,df['Equal'],linewidth=2,alpha=0.9,label=nm)
+	features.plot(yrange,linewidth=2,alpha=0.9)
 	plt.xlabel('Bin Size',size=12)
 	plt.ylabel('Probability',size=12)
 	plt.title('Equal Boundary for {0} Bins'.format(binDir),size=16)
@@ -220,20 +213,20 @@ def main():
 		collectName.append(e)
 		rangeFeatures = collect_element_coordinates(e)
 		directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,e)
-		binFeatures = collect_emperical_boundary_comparisons(directionFeatures)
+		binFeatures = collect_emperical_boundary_comparisons(directionFeatures,e)
 		collectFeatures.append(binFeatures)
 	collectRandom = []
 	for r in rFiles:
 		randomFeatures = collect_element_coordinates(r)
 		directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
-		binRandom = collect_emperical_boundary_comparisons(directionRandom)
-		collecstRandom.append(binRandom)
-	concatRandom = pd.concat(collectRandom,axis=0)
-	aveRandom = concatRandom.groupby(by=concatRandom.columns, axis=1).mean()
-	collectFeatures.append(aveRandom)
-	collectName.append('Random')
+		binRandom = collect_emperical_boundary_comparisons(directionRandom,r)
+		collectRandom.append(binRandom)
+	concatRandom = pd.concat(collectRandom,axis=1)
+	aveRandom = concatRandom.mean(axis=1)
+	concatFeatures = pd.concat(collectFeatures,axis=1)
+	concatFeatures['Random'] = aveRandom
 	paramlabels = '{0}_{1}'.format(binDir,eFiles)
-	graph_equal_boundary_probability(collectFeatures,collectName,paramlabels)
+	graph_equal_boundary_probability(concatFeatures,paramlabels)
 
 if __name__ == "__main__":
 	main()
