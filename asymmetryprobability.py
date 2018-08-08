@@ -50,14 +50,15 @@ def set_global_variables(args):
 	global sizeGenome
 	global faGenome
 	global randomassignments
-	global rFiles
 	global eFiles
 	binDir = args.bin
 	labelcolumn = args.labelcolumn
 	directionalitycolumn = args.directionalitycolumn
 	sizeGenome = args.genome
 	faGenome = args.fasta
-	rFiles = [line.strip() for line in args.randomfile]
+	if args.randomfile:
+		global rFiles
+		rFiles = [line.strip() for line in args.randomfile]
 	eFiles = [line.strip() for line in args.elementfile]
 
 # get bt features
@@ -215,16 +216,23 @@ def main():
 		directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,e)
 		binFeatures = collect_emperical_boundary_comparisons(directionFeatures,e)
 		collectFeatures.append(binFeatures)
-	collectRandom = []
-	for r in rFiles:
-		randomFeatures = collect_element_coordinates(r)
-		directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
-		binRandom = collect_emperical_boundary_comparisons(directionRandom,r)
-		collectRandom.append(binRandom)
-	concatRandom = pd.concat(collectRandom,axis=1)
-	aveRandom = concatRandom.mean(axis=1)
-	concatFeatures = pd.concat(collectFeatures,axis=1)
-	concatFeatures['Random'] = aveRandom
+		if labelcolumn:
+			typeList = directionFeatures['type'].unique()
+			for type in typeList:
+				typeFeatures = (directionFeatures[directionFeatures['type'] == type])
+				binType = collect_emperical_boundary_comparisons(typeFeatures,'{0}_{1}'.format(type,e))
+				collectFeatures.append(binType)
+		concatFeatures = pd.concat(collectFeatures,axis=1)
+	if args.randomfile:
+		collectRandom = []
+		for r in rFiles:
+			randomFeatures = collect_element_coordinates(r)
+			directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
+			binRandom = collect_emperical_boundary_comparisons(directionRandom,r)
+			collectRandom.append(binRandom)	
+		concatRandom = pd.concat(collectRandom,axis=1)
+		aveRandom = concatRandom.mean(axis=1)
+		concatFeatures['Random'] = aveRandom	
 	paramlabels = '{0}_{1}'.format(binDir,eFiles)
 	graph_equal_boundary_probability(concatFeatures,paramlabels)
 
