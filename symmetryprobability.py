@@ -29,6 +29,10 @@ import math
 import pybedtools as pbt
 import pandas as pd
 import numpy as np
+from scipy import stats
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 def get_args():
 	parser = argparse.ArgumentParser(description="Description")
@@ -129,35 +133,91 @@ def assign_directionality_from_arg_or_boundary(rangeFeatures,fileName):
 # get the empirical probability for each direction classification
 def make_probabilites_for_direction(directionFeatures,probabilitycolumn,filename):
 	lenAll = float(len(directionFeatures.index))
-	numPlus = (directionFeatures[probabilitycolumn] == '+').sum()/lenAll
-	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()/lenAll
-	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()/lenAll
-	probOptions = [filename,numPlus,numMinus,numEqual]
+	numPlus = (directionFeatures[probabilitycolumn] == '+').sum()
+	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()
+	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()
+	numAsym = numPlus + numMinus
+# 	perAsym = numAsym/lenAll
+	probOptions = [filename,numPlus,numMinus,numEqual,numAsym,lenAll]
 	return probOptions
-
-
-
 
 # save panda
 def save_panda(pdData, strFilename):
 	pdData.to_csv(strFilename,sep='\t',index=True)
 
+# get standard deviation, from ruth's random region script
+def getPopSD(arObservedOverlaps):
+	floatLen = float(len(arObservedOverlaps))
+	floatMean = float(sum(arObservedOverlaps))/len(arObservedOverlaps)
+	dSumOfSquares = sum([((float(number) - floatMean) ** 2) for number in arObservedOverlaps])
+	dVariance = float(dSumOfSquares) / floatLen
+	return math.sqrt(dVariance)
+
+# ks test from ruth's random region script
+def KSTest(aOverlapBP):
+	mean = float(sum(aOverlapBP)) / len(aOverlapBP)
+	sd = getPopSD(aOverlapBP)
+	rvNormMatched = stats.norm.rvs(loc=mean, scale=sd, size=len(aOverlapBP))
+	npArOverlapBP = np.array(aOverlapBP)
+	ksStat, KsPval = stats.ks_2samp(npArOverlapBP, rvNormMatched)
+	if KsPval <= 0.05:
+		strKSresult = "No"
+	else:
+		strKSresult = "Yes"
+	return ksStat,KsPval,strKSresult
+
+def count_features_greater_than_element(probfeatures,printfeatures,group):
+	ElementValue = probfeatures.loc[0][group]
+	printfeatures['GreaterElement'] = (printfeatures[group] >= ElementValue)
+	CountValue = printfeatures['GreaterElement'].value_counts().to_frame(group)
+	CountTotal = float(len(printfeatures.index))
+	return CountValue
+
 def main():
 	args = get_args()
 	set_global_variables(args)
-	collectpd = []
+	paramlabels = '{0}_{1}'.format(binDir,eFiles)
+	collectall = []
 	rangeFeatures = collect_element_coordinates(eFiles)
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,eFiles)
-	probFeatures = make_probabilites_for_direction(directionFeatures,'directionality',eFiles)
-	collectpd.append(probFeatures)
+	collectfeature = []
+	probfeatures = make_probabilites_for_direction(directionFeatures,'directionality',eFiles)
+# 	collectall.append(probfeatures)
+	collectfeature.append(probfeatures)
+	probfeatures = pd.DataFrame(collectfeature,columns=['File','ATrich','ATpoor','ATbalanced','ATasymmetric','TotalElements'])
 	for r in rFiles:
 		randomFeatures = collect_element_coordinates(r)
 		directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
 		probRandom = make_probabilites_for_direction(directionRandom,'directionality',r)
-		collectpd.append(probRandom)
-	df = pd.DataFrame(collectpd,columns=['File','ATrich','ATpoor','ATbalanced'])
-	paramlabels = '{0}_{1}'.format(binDir,eFiles)
-	save_panda(df,'Orientation_{0}.txt'.format(paramlabels))
+		collectall.append(probRandom)
+	printfeatures = pd.DataFrame(collectall,columns=['File','ATrich','ATpoor','ATbalanced','ATasymmetric','TotalElements'])
+# 	save_panda(printfeatures,'Collect_Orientation_{0}.txt'.format(paramlabels))
+
+	randomavefeatures = pd.DataFrame(printfeatures.mean(axis=0)).T
+	randomavefeatures['File'] = 'Random'
+	appendfeatures = probfeatures.append(randomavefeatures)
+	appendfeatures.set_index(keys='File',drop=True,inplace=True)
+	del appendfeatures.index.name
+	appendfeatures.loc['Ratio'] = appendfeatures.loc[eFiles] / appendfeatures.loc['Random']
+
+	atrich = count_features_greater_than_element(probfeatures,printfeatures,'ATrich')
+	atpoor = count_features_greater_than_element(probfeatures,printfeatures,'ATpoor')
+	atbalanced = count_features_greater_than_element(probfeatures,printfeatures,'ATbalanced')
+	atasymmetric = count_features_greater_than_element(probfeatures,printfeatures,'ATasymmetric')
+	attotal = count_features_greater_than_element(probfeatures,printfeatures,'TotalElements')
+	numbergreater = pd.concat([atrich,atpoor,atbalanced,atasymmetric,attotal],axis=1)
+	
+	collectstat = []
+	for column in appendfeatures:
+		ksStat,KsPval,strKSresult = KSTest(appendfeatures[column])
+		collectstat.append([column,ksStat,KsPval,strKSresult])
+	statFeatures = pd.DataFrame(collectstat,columns=['Group','KSCoef','KSpval','Normal'])
+	statFeatures.set_index(keys='Group',drop=True,inplace=True)
+	del statFeatures.index.name
+	allfeatures = appendfeatures.append(statFeatures.T)
+	allfeatures = allfeatures.append(numbergreater)
+	
+	save_panda(allfeatures,'Collect_Stats_{0}.txt'.format(paramlabels))
 
 
 
