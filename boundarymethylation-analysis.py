@@ -302,19 +302,50 @@ def collect_input_data_frame(file):
 	directionFeatures = assign_directionality_from_arg_or_boundary(rangeFeatures,file)
 	return directionFeatures
 
+# get the empirical probability for each direction classification
+def make_probabilites_for_direction(directionFeatures,probabilitycolumn):
+# 	lenAll = float(len(directionFeatures.index))
+	numPlus = (directionFeatures[probabilitycolumn] == '+').sum()
+	numMinus = (directionFeatures[probabilitycolumn] == '-').sum()
+	numEqual = (directionFeatures[probabilitycolumn] == '=').sum()
+	probOptions = [numMinus,numPlus,numEqual]
+	print 'made probabilities for df: {0} for +, {1} for - and {2} for ='.format(numPlus,numMinus,numEqual)
+	return probOptions
+
+# conditionally set the total number for each orientation designation
+def probability_conditions(row,probs):
+	if row["directionality"] == "+":
+		return probs[0]
+	elif row["directionality"] == "-":
+		return probs[1]
+	else:
+		return probs[2]
+
+# conditionally set the total number for each orientation designation, neg
+def probability_conditions_reverse_comp_sorted(row,probs):
+	if row["directionality"] == "+":
+		return probs[0]+probs[1]
+	elif row["directionality"] == "-":
+		return 0
+	else:
+		return probs[2]
+
 # run the whole series of steps to make the data frame for each set of elements to plot
 def run_whole_analysis_for_boundaries(pdfeatures,label):
+	proboptions = make_probabilites_for_direction(pdfeatures,'directionality')
 	upcpg,downcpg,revupcpg,revdowncpg,upcg,downcg,revupcg,revdowncg = collect_total_avail_cpg_values(pdfeatures)
 	allstream = collect_methylation_data_by_element(pdfeatures)
 	allstream['group'] = label
 	allstream['organization'] = 'unsorted'
 	allstream['cpgsum'] = np.where(allstream['boundary'] == 'up stream',upcpg,downcpg)
 	allstream['cgsum'] = np.where(allstream['boundary'] == 'up stream',upcg,downcg)
+	allstream['totalcount'] = allstream.apply(lambda row: (probability_conditions(row,proboptions)),axis=1)
 	allreverse = modify_negative_directionality_elements(allstream)
 	allreverse['group'] = label
 	allreverse['organization'] = 'rcsorted'
 	allreverse['cpgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcpg,revdowncpg)
 	allreverse['cgsum'] = np.where(allreverse['boundary'] == 'up stream',revupcg,revdowncg)
+	allreverse['totalcount'] = allreverse.apply(lambda row: (probability_conditions_reverse_comp_sorted(row,proboptions)),axis=1)
 	return allstream,allreverse
 
 # count by feature for graphing

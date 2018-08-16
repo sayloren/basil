@@ -44,7 +44,7 @@ def set_global_variables(args):
 	global histogrambins
 	eFiles = args.efile
 	histogrambins = args.histogrambins
-	outfilename = parse_file_name(eFiles)
+	outfilename = parse_file_name(eFiles)	
 	return outfilename
 
 # splitting the filename into a dataframe
@@ -58,6 +58,7 @@ def group_and_count_data_frame_by_column(pdfeatures,incol,outcol):
 	methsort['methgroupby'] = methsort.groupby(['Tissue',incol,'group'])[incol].transform('count')
 	removedups = methsort.drop_duplicates(['group',incol,'Tissue','methgroupby'],keep='last') # only count each groupby object once!!
 	removedups[outcol] = removedups.groupby(['group','Tissue','methgroupby',incol])['methgroupby'].transform('sum')
+	removedups['norm_{0}'.format(outcol)] = removedups[outcol]/removedups['totalcount']
 	return removedups
 
 # separate the elements and the random regions
@@ -89,7 +90,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 				typefillnaelement = typeelement[yval].fillna(0)
 				typefillnarandom = typerandom[yval].fillna(0)
 		else:
-			for tissue in element[hval].unique():
+			for tissue in element[hval].unique():					
 				tissueelement = element[element[hval]==tissue]
 				tissuerandom = random[random[hval]==tissue]
 				tissueelement.dropna(axis=0,inplace=True)
@@ -145,7 +146,7 @@ def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpale
 
 # Make graphs for fangs
 def graph_boundary_methylation(sorted,filelabel):
-	pp = PdfPages('{0}.pdf'.format(filelabel))
+	pp = PdfPages('BoundaryMethylation_{0}.pdf'.format(filelabel))
 	sns.set_style('ticks')
 	sns.set_palette("husl",n_colors=len(sorted['Tissue'].unique()))
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
@@ -165,7 +166,7 @@ def graph_boundary_methylation(sorted,filelabel):
 	set_plot_params(removedupstrand,'Tissue','strandcount','strandedness',pp,'Tissue','boxplot',strandpaletteelement,strandpaletterandom)
 	directionpaletteelement = {'AT rich':'#afbfe3','AT poor':'#6f84ba','AT balanced':'#465475'}
 	directionpaletterandom = {'AT rich':'#d6b5ba','AT poor':'#9d787d','AT balanced':'#624b4f'}
-	set_plot_params(removedupdir,'Tissue','dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
+	set_plot_params(removedupdir,'Tissue','norm_dircount','ATcontent',pp,'Tissue','boxplot',directionpaletteelement,directionpaletterandom)
 	set_plot_params(removeduploc,'methlocation','loccount','Tissue',pp,'Distance from Boundary','distplot','husl','husl') 
 	set_plot_params(removeduppercentage,'percentage','percount','Tissue',pp,'Percentage','distplot','husl','husl')
 	pp.close()	
