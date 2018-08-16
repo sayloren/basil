@@ -58,6 +58,7 @@ def graph_methylation(outfilename,df):
 	readelement.columns = [col.replace('_Element','')  for col in readelement.columns]
 	readrandom = df.filter(like='_Random')
 	readrandom.columns = [col.replace('_Random','')  for col in readrandom.columns]
+	numberrandom = len(readrandom.columns)
 	
 	formatelement = readelement.T
 	formatrandom = readrandom.T
@@ -77,16 +78,17 @@ def graph_methylation(outfilename,df):
 	pp.savefig()
 	gs = gridspec.GridSpec(1,1,height_ratios=[1],width_ratios=[1])
 	gs.update(hspace=.8)
-	ax1 = plt.subplot(gs[0,:])
-	heatmap1 = sns.heatmap(formatrandom,cmap='RdPu',ax=ax1,xticklabels=100)
-	ax1.set_ylabel('Tissue',size=8)
-	ax1.set_xlabel('Location',size=6)
-	ax1.tick_params(labelsize=8)
-	ylabels1 = formatrandom.index
-	ax1.set_yticklabels(ylabels1,minor=False,rotation=0)
-	ax1.set_yticks(np.arange(formatrandom.shape[0]) + 0.5, minor=False)
-	ax1.set_title('Methylation Counts per Location - Random Regions',size=8)
-	sns.despine()
+	if numberrandom > 0:
+		ax1 = plt.subplot(gs[0,:])
+		heatmap1 = sns.heatmap(formatrandom,cmap='RdPu',ax=ax1,xticklabels=100)
+		ax1.set_ylabel('Tissue',size=8)
+		ax1.set_xlabel('Location',size=6)
+		ax1.tick_params(labelsize=8)
+		ylabels1 = formatrandom.index
+		ax1.set_yticklabels(ylabels1,minor=False,rotation=0)
+		ax1.set_yticks(np.arange(formatrandom.shape[0]) + 0.5, minor=False)
+		ax1.set_title('Methylation Counts per Location - Random Regions',size=8)
+		sns.despine()
 	plt.savefig(pp,format='pdf')
 	pp.close()
 

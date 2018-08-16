@@ -69,56 +69,85 @@ def seperate_elements_and_random(pdfeatures,column,value):
 # plot params
 def set_plot_params(removedups,xval,yval,hval,pp,setxlabel,whichplot,elementpalette,randompalette):
 	element,random = seperate_elements_and_random(removedups,'group','element')
+	numberrandom = len(random.index)
 	gs = gridspec.GridSpec(2,1,height_ratios=[1,1],width_ratios=[1])
 	gs.update(hspace=.8)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
-	if whichplot == 'boxplot':
-		sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
-		sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette,errwidth=1)
-		for label in ax0.get_xticklabels():
-			label.set_rotation(15)
-		for label in ax1.get_xticklabels():
-			label.set_rotation(15)
-		for bartype in element[hval].unique():
-			typeelement = element[element[hval]==bartype]
-			typerandom = random[random[hval]==bartype]
-			typefillnaelement = typeelement[yval].fillna(0)
-			typefillnarandom = typerandom[yval].fillna(0)
+	if numberrandom != 0:
+		plt.figure(figsize=(10,10))
+		ax0 = plt.subplot(gs[0,:])
+		ax1 = plt.subplot(gs[1,:])
+		if whichplot == 'boxplot':
+			sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
+			sns.barplot(data=random,x=xval,y=yval,hue=hval,ax=ax1,palette=randompalette,errwidth=1)
+			for label in ax0.get_xticklabels():
+				label.set_rotation(15)
+			for label in ax1.get_xticklabels():
+				label.set_rotation(15)
+			for bartype in element[hval].unique():
+				typeelement = element[element[hval]==bartype]
+				typerandom = random[random[hval]==bartype]
+				typefillnaelement = typeelement[yval].fillna(0)
+				typefillnarandom = typerandom[yval].fillna(0)
+		else:
+			for tissue in element[hval].unique():
+				tissueelement = element[element[hval]==tissue]
+				tissuerandom = random[random[hval]==tissue]
+				tissueelement.dropna(axis=0,inplace=True)
+				tissuerandom.dropna(axis=0,inplace=True)
+				sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
+				sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)#,norm_hist=False
+			ax0.legend()
+			ax1.legend()
+		fillnaelement = element[yval].fillna(0)
+		fillnarandom = random[yval].fillna(0)
+		for tissue in element['Tissue'].unique():
+			tissueelement = element[element['Tissue']==tissue]
+			tissuerandom = random[random['Tissue']==tissue]
+			tissuefillnaelement = tissueelement[yval].fillna(0)
+			tissuefillnarandom = tissuerandom[yval].fillna(0)
+		ax0.set_title("Ultraconserved Elements")
+		ax1.set_title("Random Regions")
+		subplots = [ax0,ax1]
+		for plot in subplots:
+			plot.tick_params(axis='both',which='major',labelsize=16)
+			plot.set_ylabel('Count Methylation',size=16)
+			plot.set_xlabel(setxlabel,fontsize=16)
+		sns.despine()
 	else:
-		for tissue in element[hval].unique():
-			tissueelement = element[element[hval]==tissue]
-			tissuerandom = random[random[hval]==tissue]
-			tissueelement.dropna(axis=0,inplace=True)
-			tissuerandom.dropna(axis=0,inplace=True)
-			sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
-			sns.distplot(tissuerandom[xval],ax=ax1,label=tissue,bins=histogrambins)#,norm_hist=False
-		ax0.legend()
-		ax1.legend()
-	fillnaelement = element[yval].fillna(0)
-	fillnarandom = random[yval].fillna(0)
-	for tissue in element['Tissue'].unique():
-		tissueelement = element[element['Tissue']==tissue]
-		tissuerandom = random[random['Tissue']==tissue]
-		tissuefillnaelement = tissueelement[yval].fillna(0)
-		tissuefillnarandom = tissuerandom[yval].fillna(0)
-	ax0.set_title("Ultraconserved Elements")
-	ax1.set_title("Random Regions")
-	subplots = [ax0,ax1]
-	for plot in subplots:
-		plot.tick_params(axis='both',which='major',labelsize=16)
-		plot.set_ylabel('Count Methylation',size=16)
-		plot.set_xlabel(setxlabel,fontsize=16)
-	sns.despine()
+		plt.figure(figsize=(10,5))
+		ax0 = plt.subplot(gs[:,:])
+		if whichplot == 'boxplot':
+			sns.barplot(data=element,x=xval,y=yval,hue=hval,ax=ax0,palette=elementpalette,errwidth=1)
+			for label in ax0.get_xticklabels():
+				label.set_rotation(15)
+			for bartype in element[hval].unique():
+				typeelement = element[element[hval]==bartype]
+				typefillnaelement = typeelement[yval].fillna(0)
+		else:
+			for tissue in element[hval].unique():
+				tissueelement = element[element[hval]==tissue]
+				tissueelement.dropna(axis=0,inplace=True)
+				sns.distplot(tissueelement[xval],ax=ax0,label=tissue,bins=histogrambins)
+			ax0.legend()
+		fillnaelement = element[yval].fillna(0)
+		for tissue in element['Tissue'].unique():
+			tissueelement = element[element['Tissue']==tissue]
+			tissuefillnaelement = tissueelement[yval].fillna(0)
+		ax0.set_title("Ultraconserved Elements")
+		subplots = [ax0]
+		for plot in subplots:
+			plot.tick_params(axis='both',which='major',labelsize=16)
+			plot.set_ylabel('Count Methylation',size=16)
+			plot.set_xlabel(setxlabel,fontsize=16)
+		sns.despine()
+
 	plt.savefig(pp,format='pdf')
 
 # Make graphs for fangs
 def graph_boundary_methylation(sorted,filelabel):
 	pp = PdfPages('{0}.pdf'.format(filelabel))
 	sns.set_style('ticks')
-	print sorted.head()
 	sns.set_palette("husl",n_colors=len(sorted['Tissue'].unique()))
-	plt.figure(figsize=(10,10))
 	removedupcpgper = group_and_count_data_frame_by_column(sorted,'boundary','boundarycount')
 	removedupstrand = group_and_count_data_frame_by_column(sorted,'strand','strandcount')
 	strandDict = {'C':'+','G':'-'}

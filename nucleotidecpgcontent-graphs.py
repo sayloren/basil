@@ -60,13 +60,14 @@ def graph_element_line_means(outfilename,df):
 	pp = PdfPages('CpG_{0}.pdf'.format(outfilename))
 	plt.figure(figsize=(10,10))
 	normCpGmean = df['Element']
-	rannormCpGmean = df['Random']
 	allnums = [int(s) for s in outfilename.split("_") if s.isdigit()]
 	num = allnums[1]
 	window = allnums[3]
 	fillX = range(0,(num-window))
 	ax0 = plt.subplot(gs[0,:])
-	ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#d0abb0')
+	if len(df.columns) >= 2:
+		rannormCpGmean = df['Random']
+		ax0.plot(fillX,rannormCpGmean,linewidth=plotlinesize,label='Random',color='#d0abb0')
 	ax0.plot(fillX,normCpGmean,linewidth=plotlinesize,label='Element',color='#4d5c82')
 	ax0.set_ylabel('% CpG Content / % C and G Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)

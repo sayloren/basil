@@ -79,21 +79,28 @@ def graph_element_line_means_random_below(outfilename,df):
 	gs = gridspec.GridSpec(2,1)
 	gs.update(hspace=.8)
 	pp = PdfPages('Slope_{0}.pdf'.format(outfilename))
-	plt.figure(figsize=(10,10))
+
 	ATmean = df['Element']
 	smoothMean,firstDer,secondDer = collect_smoothed_lines(ATmean,fillX,window)
-	ranATmean = df['Random']
-	ransmoothMean,ranfirstDer,ransecondDer = collect_smoothed_lines(ranATmean,fillX,window)
-	ax0 = plt.subplot(gs[0,:])
-	ax1 = plt.subplot(gs[1,:])
+	if len(df.columns) >= 2:
+		plt.figure(figsize=(10,10))
+		ranATmean = df['Random']
+		ransmoothMean,ranfirstDer,ransecondDer = collect_smoothed_lines(ranATmean,fillX,window)
+		ax0 = plt.subplot(gs[0,:])
+		ax1 = plt.subplot(gs[1,:])
+		ax1.plot(fillX,ransecondDer,linewidth=plotlinesize,label='Random',color='#d0abb0')
+		subplots = [ax0,ax1]
+	else:
+		plt.figure(figsize=(10,5))
+		ax0 = plt.subplot(gs[:,:])
+		subplots = [ax0]
 	ax0.set_ylabel('% AT Content',size=16)
 	ax0.set_xlabel('Position (bp)',size=16)
-	plt.xlim(0,num)
-	ax1.plot(fillX,ransecondDer,linewidth=plotlinesize,label='Random',color='#d0abb0')
 	ax0.plot(fillX,secondDer,linewidth=plotlinesize,label='Element',color='#4d5c82')
-	subplots = [ax0,ax1]
+	
 	for plot in subplots:
 		plot.tick_params(axis='both',which='major',labelsize=20)
+		plot.set_xlim(0,num)
 	sns.despine()
 	pp.savefig()
 	pp.close()
