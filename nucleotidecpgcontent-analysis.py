@@ -84,7 +84,10 @@ def set_global_variables(args):
 	halfwindow = ((window/2)+1)
 	fillX = range(0,(num-window))
 	eFiles = args.efile
-	rFiles = [line.strip() for line in args.randomfile]
+	if args.randomfile:
+		rFiles = [line.strip() for line in args.randomfile]
+	else:
+		rFiles = None
 	labelcolumn = args.labelcolumn
 	directionalitycolumn = args.directionalitycolumn
 	sizeGenome = args.genome
@@ -293,18 +296,20 @@ def print_element_line_means(dfWindow,names,fileName,denseRandom):
 	totalCGmean = Cmean+Gmean
 	normCpGmean = CpGmean/totalCGmean
 	totalnumberelements = str(len(CpGgroup.index))
-	ranCpGgroup,ranCpGmean,ranCpGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
-	ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
-	ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
-	rantotalCGmean = ranCmean+ranGmean
-	rannormCpGmean = ranCpGmean/rantotalCGmean
-	datatable = pd.DataFrame([normCpGmean,rannormCpGmean],index=['Element','Random'])
+	if rFiles:
+		ranCpGgroup,ranCpGmean,ranCpGstd = collect_linear_two_nucleotides(denseRandom,names,'CG')
+		ranCgroup,ranCmean,ranCstd = collect_linear_two_nucleotides(denseRandom,names,'C')
+		ranGgroup,ranGmean,ranGstd = collect_linear_two_nucleotides(denseRandom,names,'G')
+		rantotalCGmean = ranCmean+ranGmean
+		rannormCpGmean = ranCpGmean/rantotalCGmean
+		datatable = pd.DataFrame([normCpGmean,rannormCpGmean],index=['Element','Random'])
+		wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
+		statstable = pd.DataFrame([wilcoxonsignedrank],
+			columns=['statistic','pvalue'],
+			index=['wsr'])
+		save_panda(statstable,'Stats_CpGcontent_{0}.txt'.format(fileName))
+	datatable = pd.DataFrame([normCpGmean],index=['Element'])
 	save_panda(datatable.T,'Data_CpGcontent_{0}.txt'.format(fileName))
-	wilcoxonsignedrank = ss.wilcoxon(CpGmean,ranCpGmean)
-	statstable = pd.DataFrame([wilcoxonsignedrank],
-		columns=['statistic','pvalue'],
-		index=['wsr'])
-	save_panda(statstable,'Stats_CpGcontent_{0}.txt'.format(fileName))
 
 # For type groups, separate the groups and run the analyses
 def separate_dataframe_by_group(listgroup,directionFeatures,typecolumn,fileName):
@@ -362,17 +367,18 @@ def main():
 				boolWindow,boolNames = sliding_window_wrapper(bool['combineString'],bool['id'])
 			probOptionstype = make_probabilites_for_direction(bool,'directionality')
 			spreadRandomtype,denseRandomtype=[],[]
-			for r in rFiles:
-				randomtypeFeatures = collect_element_coordinates(r)
-				directiontypeRandom = assign_directionality_from_arg_or_boundary(randomtypeFeatures,r)
-				if reverseComplement:
-					typedirWindow,typedirNames = sort_elements_by_directionality(directiontypeRandom,'directionality')
-				else:
-					typedirWindow,typedirNames = sliding_window_wrapper(directiontypeRandom['combineString'],directiontypeRandom['id'])
-# 				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
-# 				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
-				spreadRandomtype.append(typedirWindow)
-			denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,boolNames)
+			if rFiles:
+				for r in rFiles:
+					randomtypeFeatures = collect_element_coordinates(r)
+					directiontypeRandom = assign_directionality_from_arg_or_boundary(randomtypeFeatures,r)
+					if reverseComplement:
+						typedirWindow,typedirNames = sort_elements_by_directionality(directiontypeRandom,'directionality')
+					else:
+						typedirWindow,typedirNames = sliding_window_wrapper(directiontypeRandom['combineString'],directiontypeRandom['id'])
+	# 				bool['randomDirectiontype'] = np.random.choice(dirOptions,len(bool.index),p=probOptionstype)
+	# 				typedirWindow,typedirNames = sort_elements_by_directionality(bool,'randomDirectiontype')
+					spreadRandomtype.append(typedirWindow)
+				denseRandomtype = sliding_window_df_to_collect_all_random(spreadRandomtype,boolNames)
 			print_element_line_means(boolWindow,boolNames,'{0}_{1}'.format(type,paramlabels),denseRandomtype)
 	else:
 		if reverseComplement:
@@ -380,17 +386,18 @@ def main():
 		else:
 			allWindow,allNames = sliding_window_wrapper(directionFeatures['combineString'],directionFeatures['id'])
 		spreadRandom,denseRandom=[],[]
-		for r in rFiles:
-			randomFeatures = collect_element_coordinates(r)
-			directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
-			if reverseComplement:
-				randirWindow,randirNames = sort_elements_by_directionality(directionRandom,'directionality')
-			else:
-				randirWindow,randirNames = sliding_window_wrapper(directionRandom['combineString'],directionRandom['id'])
+		if rFiles:
+			for r in rFiles:
+				randomFeatures = collect_element_coordinates(r)
+				directionRandom = assign_directionality_from_arg_or_boundary(randomFeatures,r)
+				if reverseComplement:
+					randirWindow,randirNames = sort_elements_by_directionality(directionRandom,'directionality')
+				else:
+					randirWindow,randirNames = sliding_window_wrapper(directionRandom['combineString'],directionRandom['id'])
 # 			directionFeatures['randomDirection'] = np.random.choice(dirOptions,len(directionFeatures.index),p=probOptions)
 # 			randirWindow,randirNames = sort_elements_by_directionality(directionFeatures,'randomDirection')
 			spreadRandom.append(randirWindow)
-		denseRandom = sliding_window_df_to_collect_all_random(spreadRandom,allNames)
+			denseRandom = sliding_window_df_to_collect_all_random(spreadRandom,allNames)
 		print_element_line_means(allWindow,allNames,'all_{0}'.format(paramlabels),denseRandom)
 
 if __name__ == "__main__":
